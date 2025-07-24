@@ -1,0 +1,48 @@
+import SimpleITK as sitk
+import numpy as np
+
+def homogeneous_to_sitk_affine(homogeneous_matrix, dimension=3):
+    """
+    Converts a 4x4 homogeneous transformation matrix to a SimpleITK AffineTransform.
+
+    Args:
+        homogeneous_matrix (numpy.ndarray): A 4x4 homogeneous transformation matrix.
+        dimension (int): The dimension of the transformation (default is 3 for 3D).
+
+    Returns:
+        sitk.AffineTransform: The corresponding SimpleITK AffineTransform.
+    """
+
+    # Extract rotation/scale/shear matrix (upper-left 3x3)
+    rotation_matrix = homogeneous_matrix[:dimension, :dimension]
+
+    # Extract translation vector (last column)
+    translation_vector = homogeneous_matrix[:dimension, dimension]
+
+    # Create an AffineTransform
+    affine_transform = sitk.AffineTransform(dimension)
+
+    # Set the rotation/scale/shear matrix
+    affine_transform.SetMatrix(rotation_matrix.flatten().tolist())
+
+    # Set the translation vector
+    affine_transform.SetTranslation(translation_vector.tolist())
+
+    return affine_transform
+
+
+# Example usage:
+# Assume you have a 4x4 homogeneous matrix (example)
+homogeneous_matrix = np.array([
+    [0.9, 0.1, -0.2, 10],
+    [-0.1, 0.8, 0.3, 20],
+    [0.2, -0.3, 0.7, 30],
+    [0, 0, 0, 1]
+])
+
+# Convert to SimpleITK AffineTransform
+affine_transform = homogeneous_to_sitk_affine(homogeneous_matrix)
+
+# You can now use this affine_transform with SimpleITK's resampling filter or other functions
+# For example:
+# sitk.ResampleImageFilter().SetTransform(affine_transform)
