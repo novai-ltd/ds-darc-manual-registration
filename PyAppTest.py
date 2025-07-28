@@ -17,7 +17,7 @@ registration_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_tes
 # stem for points filename
 upload_name = "test"
 # path to read list of registration files from
-registration_files_list = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\manual_registration_files_1.csv"
+registration_files_list = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\manual_registration_files.csv"
 # flag whether to resample images and directory to save resampled images to if so
 resample_images = True
 resampled_image_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\resampled_images"

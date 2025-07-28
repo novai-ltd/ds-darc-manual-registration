@@ -194,6 +194,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # set number of current points to 0
         self.current_n_points = 0
 
+        # select first alignment by default
+        self.select_alignment(self.widgetAlignmentSelection.itemText(0))
+
     # list unique eyes to be processed
     def set_eyes(self, data_dir):
 
@@ -321,6 +324,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 # resample moving image according to transformation, to size of target image
                 target_size = target_img.shape
                 resampled_img = cv2.warpAffine(moving_img,transformation_matrix,target_size)
+
+                resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
+
+                # Convert grayscale to RGB so macOS Preview shows it properly
+                resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
+
 
                 # save registered image
                 # if no directory is given save in same directory as moving image
