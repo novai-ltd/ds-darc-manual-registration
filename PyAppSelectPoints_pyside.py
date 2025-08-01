@@ -62,7 +62,7 @@ JONATHAN_DIR = "c:\\Users\\Johnathan Young\\Documents\\GitHub\\AMD_data_flow\\da
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    def __init__(self, registration_dir, upload_name, registration_files_csv, resample_images=True, resampled_image_directory=None):
+    def __init__(self, registration_dir, upload_name, registration_files_csv, resample_images=True, resampled_image_directory=None, create_masks=False, mask_directory=None):
         super().__init__()
 
         # set data directory and get list of eyes
@@ -81,6 +81,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # store details of whether we want to resample images and if so where to save them to
         self.resample_images = resample_images
         self.resampled_image_directory = resampled_image_directory
+
+        # similar for whether we want to create masks and if so where to save them
+        self.create_masks = create_masks
+        self.mask_directory = mask_directory
 
         # convert manual alignments to pandas DF
         # store with extra columns for added points
@@ -325,11 +329,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 target_size = target_img.shape
                 resampled_img = cv2.warpAffine(moving_img,transformation_matrix,target_size)
 
-                resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
-
                 # Convert grayscale to RGB so macOS Preview shows it properly
+                resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
                 resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
-
 
                 # save registered image
                 # if no directory is given save in same directory as moving image
@@ -340,6 +342,40 @@ class MainWindow(QtWidgets.QMainWindow):
                 else :
                     registered_image_filepath = join(self.resampled_image_directory, registered_image_filename)
                 cv2.imwrite(registered_image_filepath, resampled_img)
+
+            if self.create_masks:
+
+                # get directories and target image filename
+                target_image_dir = row[1][0]
+                moving_image_dir = row[1][1]
+                target_image_filename = row[1][2]
+
+                # read in target and moving images
+                moving_img = standard_image_read(join(moving_image_dir, moving_image_filename))
+                target_img = standard_image_read(join(target_image_dir, target_image_filename))
+
+                # create mask of moving image
+                # ones to match moving image size
+                # resample moving image according to transformation, to size of target image
+                target_size = target_img.shape
+                mask_img = np.ones_like(moving_img)
+                resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size)
+
+                print (target_image_filename)
+
+                # Convert grayscale to RGB so macOS Preview shows it properly
+                resampled_mask_img = np.clip(resampled_mask_img * 255, 0, 255).astype(np.uint8)
+                resampled_mask_img = cv2.cvtColor(resampled_mask_img, cv2.COLOR_GRAY2RGB)
+
+                # save registered mask
+                # if no directory is given save in same directory as moving image
+                # otherwise save in specified directory
+                registered_mask_image_filename = f"{moving_image_stem}_registered_mask_manual.tif"
+                if self.resampled_image_directory is None:
+                    registered_mask_image_filepath = join(moving_image_dir, registered_mask_image_filename)
+                else:
+                    registered_mask_image_filepath = join(self.mask_directory, registered_mask_image_filename)
+                cv2.imwrite(registered_mask_image_filepath, resampled_mask_img)
 
         # add new outputs to alignments DF
         self.alignments['transformation_matrix_filenames'] = transformation_matrix_filenames
@@ -587,11 +623,11 @@ class MainWindow(QtWidgets.QMainWindow):
 #window.show()
 #app.exec_()
 
-def call_app(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir) :
+def call_app(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir, create_masks, mask_dir) :
 
     app = QtWidgets.QApplication(sys.argv)
 
-    window = MainWindow(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir)
+    window = MainWindow(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir, create_masks, mask_dir)
     # window.set_alignments('foo')
     window.show()  # IMPORTANT!!!!! Windows are hidden by default.
 

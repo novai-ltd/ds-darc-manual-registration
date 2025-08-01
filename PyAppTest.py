@@ -21,6 +21,8 @@ registration_files_list = "C:\\Users\\Johnathan Young\\sandbox\\manual_registrat
 # flag whether to resample images and directory to save resampled images to if so
 resample_images = True
 resampled_image_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\resampled_images"
+create_masks = True
+resampled_mask_image_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\resampled_masks"
 #app = QApplication(sys.argv)
 #window = MainWindow(base_dir, upload_name, manual_alignments_list)
 #window.set_alignments('foo')
@@ -31,6 +33,6 @@ resampled_image_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_
 
 # Your application won't reach here until you exit and the event loop has stopped
 
-call_app(registration_dir, upload_name, registration_files_list, resample_images=resample_images, resampled_image_dir=resampled_image_dir)
+call_app(registration_dir, upload_name, registration_files_list, resample_images=resample_images, resampled_image_dir=resampled_image_dir, create_masks=create_masks, mask_dir=resampled_mask_image_dir)
 print('done!')
 
