@@ -13,6 +13,17 @@ from os.path import join, basename
 from skimage.color import rgb2gray
 from PyAppSelectPoints_pyside import standard_image_read
 
+def parse_point_pair(point_pair_str):
+
+    # strip the string of whitespace and parentheses
+    point_pair_str = point_pair_str.strip("()")
+    point_pair_str = point_pair_str.replace(" ", "")
+
+    # split the string by commas
+    point_pair_list = point_pair_str.split(",")
+    point_pair_tuple = tuple(float(coord) for coord in point_pair_list)
+    return point_pair_tuple
+
 def register_images_from_points_listing(points_listing_filepath, resampled_image_dir=None, create_masks=None, masks_dir=None):
 
     # open the points listing file
@@ -26,13 +37,13 @@ def register_images_from_points_listing(points_listing_filepath, resampled_image
         target_image_filename = row["target image file"]
         moving_image_dir = row["moving image directory"]
         moving_image_filename = row["moving image file"]
-        target_point_1 = eval(row["target 1"])
-        target_point_2 = eval(row["target 2"])
-        target_point_3 = eval(row["target 3"])
-        moving_point_1 = eval(row["moving 1"])
-        moving_point_2 = eval(row["moving 2"])
-        moving_point_3 = eval(row["moving 3"])
-        #
+        target_point_1 = parse_point_pair(row["target 1"])
+        target_point_2 = parse_point_pair(row["target 2"])
+        target_point_3 = parse_point_pair(row["target 3"])
+        moving_point_1 = parse_point_pair(row["moving 1"])
+        moving_point_2 = parse_point_pair(row["moving 2"])
+        moving_point_3 = parse_point_pair(row["moving 3"])
+
         # create numpy arrays from the points
         target_points = np.array([target_point_1, target_point_2, target_point_3])
         moving_points = np.array([moving_point_1, moving_point_2, moving_point_3])
