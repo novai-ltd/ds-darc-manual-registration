@@ -76,6 +76,17 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
         resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
 
+        # save the resampled image
+        registered_image_filename = f"{moving_image_stem}_registered_manual.tif"
+        if resampled_image_dir is None:
+            registered_image_filepath = join(moving_image_dir, registered_image_filename)
+        else:
+            registered_image_filepath = join(resampled_image_dir, registered_image_filename)
+        cv2.imwrite(registered_image_filepath, resampled_img)
+
+        # append resampled image filepath to list
+        resampled_image_filepaths.append(registered_image_filepath)
+
         # create a mask if requested
         if create_masks:
 
@@ -102,16 +113,16 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
             # append mask filepath to list
             mask_filepaths.append(registered_mask_image_filepath)
 
-        # save the resampled image
-        registered_image_filename = f"{moving_image_stem}_registered_manual.tif"
-        if resampled_image_dir is None:
-            registered_image_filepath = join(moving_image_dir, registered_image_filename)
-        else:
-            registered_image_filepath = join(resampled_image_dir, registered_image_filename)
-        cv2.imwrite(registered_image_filepath, resampled_img)
 
-    foo=1
+    # add the output filepath lists to the dataframe
+    points_listing_df["transformation matrix filepath"] = transformation_matrix_filepaths
+    points_listing_df["resampled image filepath"] = resampled_image_filepaths
+    if create_masks:
+        points_listing_df["mask filepath"] = mask_filepaths
 
+    # save the updated points listing dataframe to a new CSV file
+    output_csv_filepath = points_listing_filepath.replace(".csv", "_registered_details.csv")
+    points_listing_df.to_csv(output_csv_filepath, index=False)
 
 
 
