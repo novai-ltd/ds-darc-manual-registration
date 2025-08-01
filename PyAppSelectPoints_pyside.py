@@ -560,6 +560,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.point_table.clear()
         self.point_table.setHorizontalHeaderLabels(["target image point", "moving image point"])
 
+        # if points were saved, decrement counter of points aligments done
+        if not self.alignments.at[self.current_alignment_row_index, 'target image points'] is None:
+            self.n_alignments_done = self.n_alignments_done - 1
+
         # remove points from images
         self.set_original_target_image()
         self.set_original_moving_image()
@@ -585,13 +589,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # points are removed, allow change alignment
         self.widgetAlignmentSelection.setDisabled(False)
 
-        # update counter
-        self.n_alignments_done = self.n_alignments_done - 1
-
         # if we have removed the last saved points, disable writing
         if self.n_alignments_done == 0:
 
             self.write_points_button.setDisabled(True)
+
+        print ("points removed. n alignments done: ", self.n_alignments_done)
 
 #    def closeEvent(self, event):
 #        buttonReply = QtWidgets.QMessageBox.question(self, 'Save points', "Save points",
