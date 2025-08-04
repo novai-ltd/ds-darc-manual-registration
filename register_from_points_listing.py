@@ -1,17 +1,11 @@
 import numpy as np
 import cv2
-import glob
 import os
-import sys
-import json
 import pandas as pd
-import PySide2
-import time
-import SimpleITK as sitk
 from pathlib import Path
-from os.path import join, basename
-from skimage.color import rgb2gray
+from os.path import join
 from PyAppSelectPoints_pyside import standard_image_read
+import argparse
 
 def parse_point_pair(point_pair_str):
 
@@ -27,7 +21,7 @@ def parse_point_pair(point_pair_str):
 def register_images_from_points_listing(points_listing_filepath, transformation_dir, resampled_image_dir=None, create_masks=None, mask_dir=None):
 
     # open the points listing file
-    points_listing_df = pd.read_csv(points_listing_filepath)
+    points_listing_df = pd.read_excel(points_listing_filepath, engine="openpyxl")
 
     # initialize lists to hold the paths of the transformation matrices and resampled images
     # and optionally the masks
@@ -121,9 +115,29 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         points_listing_df["mask filepath"] = mask_filepaths
 
     # save the updated points listing dataframe to a new CSV file
-    output_csv_filepath = points_listing_filepath.replace(".csv", "_registered_details.csv")
-    points_listing_df.to_csv(output_csv_filepath, index=False)
+    output_xl_filepath = points_listing_filepath.replace(".xlsx", "_registered_details.xlsx")
+    points_listing_df.to_excel(output_xl_filepath, index=False)
 
+def main():
+
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("--points_listing_file")
+    parser.add_argument("--transformation_dir")
+    parser.add_argument("--resampled_image_dir", default=None)
+    parser.add_argument("--create_masks", default=None)
+    parser.add_argument("--mask_dir", default=None)
+
+    args = parser.parse_args()
+
+    register_images_from_points_listing(
+        args.points_listing_file,
+        args.transformation_dir,
+        args.resampled_image_dir,
+        args.create_masks,
+        args.mask_dir)
+
+if __name__ == "__main__":
+    main()
 
 
 
