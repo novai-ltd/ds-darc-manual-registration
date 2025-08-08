@@ -88,7 +88,7 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
             # ones to match moving image size
             # resample moving image according to transformation, to size of target image
             mask_img = np.ones_like(moving_img)
-            resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size)
+            resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size, flags=cv2.INTER_NEAREST)
 
             # Convert grayscale to RGB so macOS Preview shows it properly
             resampled_mask_img = np.clip(resampled_mask_img * 255, 0, 255).astype(np.uint8)
