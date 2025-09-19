@@ -1,8 +1,8 @@
-from PySide2 import QtCore, QtGui, QtWidgets
-#from PyQt5 import QtCore, QtGui, QtWidgets, uic
-#from PyQt5.QtWidgets import *
-#from PyQt5.QtCore import *
-#from PyQt5.QtGui import *
+#from PySide2 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets, uic
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
 import numpy as np
 import cv2
 import glob
@@ -39,6 +39,111 @@ def standard_image_read(image_file_path) :
         image = rgb2gray(image)
     return image
 
+class QResizingPixmapLabel(QLabel):
+    """
+    Class extending QLabel to allow for resizing of the image while keeping the aspect ratio
+
+    On resize, set new image size, widget size, and scale factor as attributes of the main window
+    and redraw both images
+
+    Attributes:
+        main_window (MainWindow): main window of the application
+    """
+
+    def __init__(self, main_window):
+        """
+        Initialize the QLabel class
+        Set initial parameters and pointer to main window
+
+        Args:
+            main_window (MainWindow): main window of the application
+        Attributes:
+            main_window (MainWindow): main window of the application
+        """
+        super().__init__()
+        self.main_window = main_window
+        self.setMinimumSize(1,1)
+        self.setScaledContents(False)
+        self._pixmap = QPixmap(self.pixmap())
+
+    def heightForWidth(self, width):
+        """
+        Calculate the preferred height for this widget, given the width.
+
+        Args:
+            width (int): width of the widget
+        Returns:
+            int: height of the widget
+        """
+        if self._pixmap is None:
+            return self.height()
+        else:
+            return int(width * (self.pixmap().height() / self.pixmap().width()))
+
+    def setPixmap(self, pixmap):
+        """
+        set the Pixmap of the widget
+
+        Args:
+            pixmap (QPixmap): pixmap to set
+        """
+        self._pixmap = pixmap
+        super().setPixmap(pixmap)
+
+    def sizeHint(self):
+        """
+        suggest the size of the widget
+
+        Returns:
+            QSize: pyqt QSize object with the suggested height and width
+        """
+
+        # extract the width of the widget, and use it to calculate the height with heightForWidth
+        width = self.width()
+        return QSize(width, self.heightForWidth(width))
+
+    # on resize, rescale the image to fit the label while keeping the aspect ratio
+    def resizeEvent(self, event):
+        """
+        Handle a resize event.
+        First calculate the new size of the image, then redraw both images at the new size
+        Then set the new image and image widget size as attributes of the main window to enable correct spot removal and addition
+
+        Args:
+            event (QEvent): resize event
+        """
+
+        print("resize")
+        if self._pixmap is not None:
+
+            print("resize")
+
+            # calculate the new size of the image
+            scaled = self._pixmap.scaled(self.width(), self.height(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+            image_height = scaled.height()
+            image_width = scaled.width()
+
+
+            # redraw both images
+            self.main_window.set_original_moving_image()
+            self.main_window.set_original_target_image()
+
+            # reset the image and image widget size as attributes of the main window
+            # and recalculate and store scale factor
+            self.main_window.image_display_size = (image_height, image_width)
+            self.main_window.image_widget_size = (self.width(), self.height())
+            self.main_window.scale_factor = self.main_window.image_display_size[0] / self.main_window.current_moving_image_array_size[0]
+            print(f"image_height = {image_height}")
+            print(f"image_width = {image_width}")
+            print(f"widget height: {self.height()}")
+            print(f"widget width: {self.width()}")
+
+
+
+            # set alignment of the image in the widget to center
+            self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+
 # For the migration from PyQt5 to PySide2 to work (on Mac at least), one must set this environment variable otherwise it hangs indefinitely (whereas it's fine in PyQt5)
 # https://stackoverflow.com/questions/64833558/apps-not-popping-up-on-macos-big-sur-11-0-1#_=
 # os.environ['QT_MAC_WANTS_LAYER'] = '1'
@@ -49,32 +154,53 @@ dirname = os.path.dirname(PySide2.__file__)
 plugin_path = os.path.join(dirname, 'plugins', 'platforms')
 os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = plugin_path
 
-#p = '195'
-#side = 'os'
-
-split = 497
-targetsz = 400  # 500
-OCTRectHeight = 330
-
-ALEX_DIR = "/Users/gdgr/Projects/Novai/Data/AMD_data_flow/data"
-JONATHAN_DIR = "c:\\Users\\Johnathan Young\\Documents\\GitHub\\AMD_data_flow\\data"
-
 
 class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, registration_dir, upload_name, registration_files_csv, resample_images=True, resampled_image_directory=None, create_masks=False, mask_directory=None):
         super().__init__()
 
-        # set data directory and get list of eyes
-        if os.path.isdir(ALEX_DIR):
-            print('Hi Alex!')
+        # store paths to required and optional output directories, and flags for optional ones.
+        self.set_paths(registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory)
 
-            self.data_dir = ALEX_DIR
-        if os.path.isdir(JONATHAN_DIR):
-            print('Hi Jonathan!')
-            self.data_dir = JONATHAN_DIR
+        # read in any list of registration details to be done from .csv file
+        self.set_alignments(registration_files_csv)
 
-        # store details of where we will put output file
+        # user selects alignments/image pairs from a pull down list widget
+        # create the widget and populate the pull down list using file names from the alignments list
+        self.create_alignment_selection_widget()
+
+        # create the image display widgets
+        self.set_up_image_display()
+
+        # set up overall main window layout and connect controls to functions
+        self.set_up_layout()
+        self.connect_button_functionality()
+
+        # set number of current points to 0
+        self.current_n_points = 0
+
+        # select first alignment by default
+        self.select_alignment(self.widgetAlignmentSelection.itemText(0))
+
+
+    def set_paths(self, registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory):
+
+        """
+        Takes the required and optional path arguments together with flags for whether the optional ones should be used
+        and store so they can be accessed when needed later
+
+        Args:
+            registration_dir (str): string representing root directory of outputs to write registration details to
+            upload_name (str): filename stem to use for file containing control point coordinates
+            resample_images (bool): flag indicating whether to resample moving images to space of target images
+            resampled_image_directory (str): path of directory to write resampled images to if resample_images = True
+            create_masks (bool): flag indicating whether to generate binary masks showing the area covered by the moving image in the target space
+            mask_directory (str): path of directory to write binary masks to if create_masks = True
+
+        """
+
+        # store details of where we will put output files
         self.base_dir = registration_dir
         self.upload_name = upload_name
 
@@ -86,6 +212,58 @@ class MainWindow(QtWidgets.QMainWindow):
         self.create_masks = create_masks
         self.mask_directory = mask_directory
 
+    def create_alignment_selection_widget(self):
+        """
+        The user selects which alignment/image pair to do by selecting from a dropdown list.
+        Here we create a widget for that list, and then populate that list with image names pulled from the alignments table
+        """
+
+        # create the widget to hold the dropdown list
+        self.widgetAlignmentSelection = QtWidgets.QComboBox(self)
+
+        # loop through rows of the alignments table
+        for i, row in enumerate(self.alignments.iterrows()):
+
+            # for each row, join the name of the moving image to the name of the target image to create a dropdown menu item
+            # then add the item to the widget
+            alignment_txt = str(i+1) + ': ' + row[1][3] + ' to ' + row[1][2]
+            self.widgetAlignmentSelection.addItem(alignment_txt)
+
+        # connect the widget to the function implementing selection of an alignment/image pair
+        self.widgetAlignmentSelection.activated[str].connect(self.select_alignment)
+
+    def set_up_image_display(self):
+
+        # set initial image size
+        self.image_display_size = (1250, 1250)
+
+        # create grey QPixmap to initially show before an alignment has been selected
+        grey = QtGui.QPixmap(self.image_display_size[0], self.image_display_size[1])
+        grey.fill(QtGui.QColor('darkGray'))
+
+        # create QLabels/QResizingPixmapLabels for target and moving images
+        #self.target_image = QtWidgets.QLabel(self)
+        self.target_image = QResizingPixmapLabel(self)
+        #self.moving_image = QtWidgets.QLabel(self)
+        self.moving_image = QResizingPixmapLabel(self)
+
+        # set the images to grey
+        self.target_image.setPixmap(grey)
+        self.moving_image.setPixmap(grey)
+
+        # link mouse click on each image to function to place a point
+        self.target_image.mousePressEvent = self.set_point_on_target_image
+        self.moving_image.mousePressEvent = self.set_point_on_moving_image
+
+    def set_alignments(self, registration_files_csv):
+
+        """
+        Read in a list of image pairs to be registered from file and store them
+
+        Args:
+            registration_files_csv (str): path to correctly formatted .csv file listing target image and moving image files and directories
+        """
+
         # convert manual alignments to pandas DF
         # store with extra columns for added points
         # set extra columns as object as we want to put lists in them
@@ -93,45 +271,32 @@ class MainWindow(QtWidgets.QMainWindow):
         # check why this happens!!!
         self.alignments = pd.read_csv(registration_files_csv)
         self.alignments = self.alignments.drop_duplicates()
-        self.alignments = self.alignments.reindex(columns = ['target image directory', 'moving image directory', 'target image file','moving image file', 'target image points', 'moving image points', 'target image scale factors', 'moving image scale factors'])
-        self.alignments[['target image points', 'moving image points', 'target image scale factors', 'moving image scale factors']] = self.alignments[['target image points', 'moving image points', 'target image scale factors', 'moving image scale factors']].astype('object')
-        self.alignments[['target image points', 'moving image points', 'target image scale factors', 'moving image scale factors']] = self.alignments[['target image points', 'moving image points', 'target image scale factors', 'moving image scale factors']] = None
+        self.alignments = self.alignments.reindex(
+            columns=['target image directory', 'moving image directory', 'target image file', 'moving image file',
+                     'target image points', 'moving image points', 'target image scale factors',
+                     'moving image scale factors'])
+        self.alignments[['target image points', 'moving image points', 'target image scale factors',
+                         'moving image scale factors']] = self.alignments[
+            ['target image points', 'moving image points', 'target image scale factors',
+             'moving image scale factors']].astype('object')
+        self.alignments[['target image points', 'moving image points', 'target image scale factors',
+                         'moving image scale factors']] = self.alignments[
+            ['target image points', 'moving image points', 'target image scale factors',
+             'moving image scale factors']] = None
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
 
-        self.set_eyes(self.data_dir)
-        self.image_size = (800, 800)
+    def set_up_layout(self):
 
-        # populate alignment selection dropdown
-        self.widgetAlignmentSelection = QtWidgets.QComboBox(self)
+        """
+        Create and organize the overall layout of the app elements
+        Start with lowest level objects (except images, which are created in a separate function)
+        Set appearance but not functionality of elements and hierarchically group them together to build top level layout
 
-        i = 1
-        for row in self.alignments.iterrows() :
+        """
 
-            alignment_txt = str(i) + ': ' + row[1][3] + ' to ' + row[1][2]
-
-            self.widgetAlignmentSelection.addItem(alignment_txt)
-            i = i+1
-
-        self.widgetAlignmentSelection.activated[str].connect(self.select_alignment)
-
-        # initialise image display to grey
-        # fix height so resizing window doesn't mess up pixel coordinates
-        self.target_image = QtWidgets.QLabel(self)
-        grey = QtGui.QPixmap(self.image_size[0], self.image_size[1])
-        grey.fill(QtGui.QColor('darkGray'))
-        self.moving_image = QtWidgets.QLabel(self)
-        grey = QtGui.QPixmap(self.image_size[0], self.image_size[1])
-        grey.fill(QtGui.QColor('darkGray'))
-        self.target_image.setFixedHeight(self.image_size[0])
-        self.target_image.setPixmap(grey)
-        self.target_image.mousePressEvent = self.set_point_on_target_image
-        self.moving_image = QtWidgets.QLabel(self)
-        self.moving_image.setPixmap(grey)
-        self.moving_image.setFixedHeight(self.image_size[0])
-        self.moving_image.mousePressEvent = self.set_point_on_moving_image
-
-        # set labels
+        # set up text labels for images and point table
+        # first create labels, then set label text and align them
         self.target_image_label = QtWidgets.QLabel(self)
         self.moving_image_label = QtWidgets.QLabel(self)
         self.point_table_label = QtWidgets.QLabel(self)
@@ -142,42 +307,36 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moving_image_label.setAlignment(QtCore.Qt.AlignCenter)
         self.point_table_label.setAlignment(QtCore.Qt.AlignCenter)
 
-        # set up added points table
+        # set up table to display coordinates of points added by the user
+        # label the columns
         self.point_table = QtWidgets.QTableWidget()
         self.point_table.setRowCount(3)
         self.point_table.setColumnCount(2)
         self.point_table.setHorizontalHeaderLabels(["target image point", "moving image point"])
 
-        # set up image selection labels
+        # set up label for image selection dropdown list
         self.image_selection_label = QtWidgets.QLabel(self)
         self.image_selection_label.setText('image pair selection')
         self.image_selection_label.setAlignment(QtCore.Qt.AlignCenter)
 
         # set up point saving buttons
+        # create BoxLayouto to put them in then create the buttons
+        # adding button text to each one as we go
+        # finally add the buttons to the layout
         self.layoutPointControl = QtWidgets.QVBoxLayout()
         self.add_points_button = QtWidgets.QPushButton(self)
         self.add_points_button.setText('add current point pair')
-        self.add_points_button.clicked.connect(self.add_points)
         self.save_points_button = QtWidgets.QPushButton(self)
         self.save_points_button.setText('save current points')
-        self.save_points_button.clicked.connect(self.save_points)
         self.remove_points_button = QtWidgets.QPushButton(self)
         self.remove_points_button.setText('remove all points')
-        self.remove_points_button.clicked.connect(self.remove_points)
         self.write_points_button = QtWidgets.QPushButton(self)
         self.write_points_button.setText('write saved points to file and quit')
-        self.write_points_button.clicked.connect(self.write_points_to_file)
         self.layoutPointControl.addWidget(self.point_table)
         self.layoutPointControl.addWidget(self.add_points_button)
         self.layoutPointControl.addWidget(self.save_points_button)
         self.layoutPointControl.addWidget(self.remove_points_button)
         self.layoutPointControl.addWidget(self.write_points_button)
-
-        # initially cannot add, save, write or remove points
-        self.add_points_button.setDisabled(True)
-        self.save_points_button.setDisabled(True)
-        self.remove_points_button.setDisabled(True)
-        self.write_points_button.setDisabled(True)
 
         # set up overall layout with qgrid
         self.layout = QtWidgets.QGridLayout()
@@ -190,23 +349,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
         self.layout.addWidget(self.widgetAlignmentSelection, 3, 0, 1, 2)
 
+        # set overall layout as central widget
         self.widget = QtWidgets.QWidget()
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
 
-        self.AMD_selected = False
-        # set number of current points to 0
-        self.current_n_points = 0
+    def connect_button_functionality(self):
 
-        # select first alignment by default
-        self.select_alignment(self.widgetAlignmentSelection.itemText(0))
+        # connect point buttons to the appropriate functions
+        self.add_points_button.clicked.connect(self.add_points)
+        self.save_points_button.clicked.connect(self.save_points)
+        self.remove_points_button.clicked.connect(self.remove_points)
+        self.write_points_button.clicked.connect(self.write_points_to_file)
 
-    # list unique eyes to be processed
-    def set_eyes(self, data_dir):
-
-        im_dirs = os.listdir(self.data_dir)
-        eyes = map(lambda x: '_'.join(x.split('_')[:2]), im_dirs)
-        self.eyes = list(set(eyes))
+        # initially cannot add, save, write or remove points
+        self.add_points_button.setDisabled(True)
+        self.save_points_button.setDisabled(True)
+        self.remove_points_button.setDisabled(True)
+        self.write_points_button.setDisabled(True)
 
     # display eyes for selected alignment
     def select_alignment(self, alignment_str):
@@ -228,6 +388,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.current_target_image_dir = self.current_alignment_row['target image directory'].values[0]
         self.current_moving_image_dir = self.current_alignment_row['moving image directory'].values[0]
+
+        # read and store image arrays
+        self.current_moving_img_array = standard_image_read(join(self.current_moving_image_dir, self.current_moving_image_file))
+        self.current_target_img_array = standard_image_read(join(self.current_target_image_dir, self.current_target_image_file))
+
+        # store real image sizes so we can calculate scale factors after any resizing
+        self.current_moving_image_array_size = self.current_moving_img_array.shape
+        self.current_target_image_array_size = self.current_target_img_array.shape
+
+        # add singleton dimension to images for channels
+        self.current_target_img_array = self.current_target_img_array[:, np.newaxis]
+        self.current_moving_img_array = self.current_moving_img_array[:, np.newaxis]
 
         # set images
         self.set_original_target_image()
@@ -391,26 +563,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_original_target_image(self):
 
         # set image
-        target_image_file = os.path.join(self.current_target_image_dir, self.current_target_image_file)
-        self.current_target_image = cv2.imread(target_image_file)
-        self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_image))
+        self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array))
 
-        # set image scale factors
-        target_image_y_size, target_image_x_size, dummy = self.current_target_image.shape
-        self.current_target_image_y_scale_factor = target_image_y_size / self.image_size[0]
-        self.current_target_image_x_scale_factor = target_image_y_size / self.image_size[1]
 
     def set_original_moving_image(self):
 
-        moving_image_file = os.path.join(self.current_moving_image_dir, self.current_moving_image_file)
-        self.current_moving_image = cv2.imread(moving_image_file)
-        self.moving_image.setPixmap(
-            self.convert_ndarray_to_QPixmap(self.current_moving_image))
-
-        # set image scale factors
-        moving_image_y_size, moving_image_x_size, dummy = self.current_moving_image.shape
-        self.current_moving_image_y_scale_factor = moving_image_y_size / self.image_size[0]
-        self.current_moving_image_x_scale_factor = moving_image_y_size / self.image_size[1]
+        self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array))
 
     def set_point_on_moving_image(self, event):
 
@@ -481,7 +639,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         qimg = QtGui.QImage(img.data, h, w, 3 * h, QtGui.QImage.Format_RGB888)
         qpixmap = QtGui.QPixmap(qimg)
-        qpixmap = qpixmap.scaled(self.image_size[0], self.image_size[1])
+        #qpixmap = qpixmap.scaled(self.image_size[0], self.image_size[1])
+        qpixmap = qpixmap.scaled(self.image_display_size[0], self.image_display_size[1])
         return qpixmap
 
     def add_points(self):
