@@ -324,6 +324,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # adding button text to each one as we go
         # finally add the buttons to the layout
         self.layoutPointControl = QtWidgets.QVBoxLayout()
+        #self.layoutPointControl = QtWidgets.QGridLayout()
         self.add_points_button = QtWidgets.QPushButton(self)
         self.add_points_button.setText('add current point pair')
         self.save_points_button = QtWidgets.QPushButton(self)
@@ -337,6 +338,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layoutPointControl.addWidget(self.save_points_button)
         self.layoutPointControl.addWidget(self.remove_points_button)
         self.layoutPointControl.addWidget(self.write_points_button)
+        #self.layoutPointControl.addWidget(self.point_table, 0, 0, 1, 2)
+        #self.layoutPointControl.addWidget(self.add_points_button, 1, 0, 1, 2)
+        #self.layoutPointControl.addWidget(self.save_points_button, 2, 0, 1, 2)
+        #self.layoutPointControl.addWidget(self.remove_points_button, 3, 0, 1, 2)
+        #self.layoutPointControl.addWidget(self.write_points_button, 4, 0, 1, 2)
+        #self.layoutPointControl.setRowStretch(0, 1)
+        self.layoutPointWidget = QWidget()
+        self.layoutPointWidget.setLayout(self.layoutPointControl)
+        self.layoutPointWidget.setFixedWidth(250)
+
 
         # set up overall layout with qgrid
         self.layout = QtWidgets.QGridLayout()
@@ -345,7 +356,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.point_table_label, 0, 2)
         self.layout.addWidget(self.target_image, 1, 0)
         self.layout.addWidget(self.moving_image, 1, 1)
-        self.layout.addLayout(self.layoutPointControl, 1, 2)
+        #self.layout.addLayout(self.layoutPointControl, 1, 2)
+        self.layout.addWidget(self.layoutPointWidget, 1, 2)
         self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
         self.layout.addWidget(self.widgetAlignmentSelection, 3, 0, 1, 2)
 
