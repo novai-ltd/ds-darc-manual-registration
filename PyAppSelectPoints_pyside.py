@@ -215,8 +215,8 @@ class QResizingPixmapLabel(QLabel):
             # and recalculate and store scale factors - can be different for each image if they have different original sizes
             self.main_window.image_display_size = (image_height, image_width)
             self.main_window.image_widget_size = (self.width(), self.height())
-            self.main_window.moving_image_scale_factor = self.main_window.image_display_size[0] / self.main_window.current_moving_image_array_size[0]
-            self.main_window.target_image_scale_factor = self.main_window.image_display_size[0] / self.main_window.current_target_image_array_size[0]
+            self.main_window.moving_image_scale_factor = self.main_window.current_moving_image_array_size[0] / self.main_window.image_display_size[0]
+            self.main_window.target_image_scale_factor = self.main_window.current_target_image_array_size[0] / self.main_window.image_display_size[0]
 
             # set alignment of the image in the widget to center
             self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -375,16 +375,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.alignments = self.alignments.drop_duplicates()
         self.alignments = self.alignments.reindex(
             columns=['target image directory', 'moving image directory', 'target image file', 'moving image file',
-                     'target image points', 'moving image points', 'target image scale factors',
-                     'moving image scale factors'])
-        self.alignments[['target image points', 'moving image points', 'target image scale factors',
-                         'moving image scale factors']] = self.alignments[
-            ['target image points', 'moving image points', 'target image scale factors',
-             'moving image scale factors']].astype('object')
-        self.alignments[['target image points', 'moving image points', 'target image scale factors',
-                         'moving image scale factors']] = self.alignments[
-            ['target image points', 'moving image points', 'target image scale factors',
-             'moving image scale factors']] = None
+                     'target image points', 'moving image points'])
+        self.alignments[['target image points', 'moving image points']] = self.alignments[
+            ['target image points', 'moving image points']].astype('object')
+        self.alignments[['target image points', 'moving image points']] = self.alignments[
+            ['target image points', 'moving image points']] = None
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
 
@@ -517,32 +512,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # draw points if necessary
         # and repopulate table
-        existing_target_image_points =  self.alignments.at[self.current_alignment_row_index, 'target image points']
+        existing_target_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
         if not existing_target_image_points == None :
 
-            existing_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+            self.draw_image(True)
+            self.draw_image(False)
 
-            # TODO - load existing points and trigger image drawing
-            #
-            # current_points = []
-            # for i, target_image_point in enumerate(existing_target_image_points) :
-            #
-            #     moving_image_point = existing_moving_image_points[i]
-            #     point_pair = [target_image_point, moving_image_point]
-            #     current_points.append(point_pair)
-            #     colour = self.get_colour(i)
-            #     new_target_image = cv2.resize(new_target_image, (self.image_size[0], self.image_size[1]))
-            #     new_target_image = cv2.circle(new_target_image, (point_pair[0][0], point_pair[0][1]), 3, colour, -1)
-            #     new_moving_image = cv2.resize(new_moving_image, (self.image_size[0], self.image_size[1]))
-            #     new_moving_image = cv2.circle(new_moving_image, (point_pair[1][0], point_pair[1][1]), 3, colour, -1)
-            #
-            #     self.point_table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(point_pair[0])))
-            #     self.point_table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(point_pair[1])))
-            #
-            # self.current_points = current_points
-            #
-            # self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(new_target_image))
-            # self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(new_moving_image))
             self.current_n_points = 3
             # turn off save button
             self.save_points_button.setDisabled(True)
@@ -578,18 +553,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # iterate through alignments generating a transformation matrix txt file and a sitk transformation object for each one
         for row in self.alignments.iterrows() :
 
-            # extract:
-            # target and moving points
-            # target and moving scale factors
+            # extract target and moving points
+            # no longer need scale factors as image display sizes vary.
+            # points are saved in original image pixel space
             moving_image_filename = row[1][3]
             target_points = row[1][4]
             moving_points = row[1][5]
-            target_scale = row[1][6]
-            moving_scale = row[1][7]
 
             # convert points to numpy arrays, allowing for scale
-            target_points = np.array(target_points) * target_scale
-            moving_points = np.array(moving_points) * moving_scale
+            target_points = np.array(target_points)
+            moving_points = np.array(moving_points)
 
             # generate homogenous transformation matrix
             transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
@@ -609,8 +582,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 target_image_filename = row[1][2]
 
                 # read in target and moving images
-                moving_img = standard_image_read(join(moving_image_dir, moving_image_filename))
-                target_img = standard_image_read(join(target_image_dir, target_image_filename))
+                moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
+                target_img, target_img_read = standard_image_read(join(target_image_dir, target_image_filename))
 
                 # resample moving image according to transformation, to size of target image
                 target_size = target_img.shape
@@ -701,8 +674,8 @@ class MainWindow(QtWidgets.QMainWindow):
             x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
 
             # then convert these to coordinates relative to original image size
-            x_image_original = int(x_image_display / self.moving_image_scale_factor)
-            y_image_original = int(y_image_display / self.moving_image_scale_factor)
+            x_image_original = int(x_image_display * self.moving_image_scale_factor)
+            y_image_original = int(y_image_display * self.moving_image_scale_factor)
 
             # store the current coordinate
             self.current_moving_image_point = np.array([x_image_original, y_image_original])
@@ -731,8 +704,8 @@ class MainWindow(QtWidgets.QMainWindow):
             x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
 
             # then convert these to coordinates relative to original image size
-            x_image_original = int(x_image_display / self.target_image_scale_factor)
-            y_image_original = int(y_image_display / self.target_image_scale_factor)
+            x_image_original = int(x_image_display * self.target_image_scale_factor)
+            y_image_original = int(y_image_display * self.target_image_scale_factor)
 
             # store the current coordinate
             self.current_target_image_point = np.array([x_image_original, y_image_original])
@@ -754,8 +727,11 @@ class MainWindow(QtWidgets.QMainWindow):
             image = self.moving_image
 
             # get points as list of tuples
-            existing_image_points = self.stashed_moving_image_points
-            current_image_point = self.current_moving_image_point
+            # either from existing points in alignment DF or from stashed points/current point if not
+            saved_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+            if saved_image_points is None:
+                existing_image_points = self.stashed_moving_image_points
+                current_image_point = self.current_moving_image_point
 
         else :
 
@@ -765,19 +741,26 @@ class MainWindow(QtWidgets.QMainWindow):
             image = self.target_image
 
             # get points as list of tuples
-            existing_image_points = self.stashed_target_image_points
-            current_image_point = self.current_target_image_point
+            # either from existing points in alignment DF or from stashed points/current point if not
+            saved_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
+            if saved_image_points is None:
+                existing_image_points = self.stashed_target_image_points
+                current_image_point = self.current_target_image_point
 
-        # combine existing and current points into single list so we can draw all of them - either or both may be None
-        # TODO find a more elegant way of doing this
-        if existing_image_points is None and current_image_point is None:
-            image_points = []
-        elif existing_image_points is None and current_image_point is not None:
-            image_points = [current_image_point]
-        elif existing_image_points is not None and current_image_point is None:
-            image_points = existing_image_points
+        # either set saved image points as image points to draw, or use stashed/current points if no saved points
+        if saved_image_points is not None:
+            image_points = saved_image_points
         else:
-            image_points = existing_image_points + [current_image_point]
+            # combine existing and current points into single list so we can draw all of them - either or both may be None
+            # TODO find a more elegant way of doing this
+            if existing_image_points is None and current_image_point is None:
+                image_points = []
+            elif existing_image_points is None and current_image_point is not None:
+                image_points = [current_image_point]
+            elif existing_image_points is not None and current_image_point is None:
+                image_points = existing_image_points
+            else:
+                image_points = existing_image_points + [current_image_point]
 
         # loop through current points and draw them with the correct colour
         for ind, point in enumerate(image_points):
@@ -789,8 +772,8 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 scale_factor = self.target_image_scale_factor
             x_image_original, y_image_original = point
-            x_image_display = int(x_image_original * scale_factor)
-            y_image_display = int(y_image_original * scale_factor)
+            x_image_display = int(x_image_original / scale_factor)
+            y_image_display = int(y_image_original / scale_factor)
             colour = self.get_colour(ind)
 
             # Create a QPainter object and set the brush color and size
@@ -859,10 +842,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.alignments.at[self.current_alignment_row_index, 'target image points'] = self.stashed_target_image_points
         self.alignments.at[self.current_alignment_row_index, 'moving image points'] = self.stashed_moving_image_points
-
-        # also add scale factor
-        self.alignments.at[self.current_alignment_row_index, 'target image scale factors'] = (self.target_image_scale_factor, self.target_image_scale_factor)
-        self.alignments.at[self.current_alignment_row_index, 'moving image scale factors'] = (self.moving_image_scale_factor, self.moving_image_scale_factor)
 
         # turn off save button
         self.save_points_button.setDisabled(True)
