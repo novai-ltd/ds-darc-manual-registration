@@ -1,4 +1,3 @@
-#from PySide2 import QtCore, QtGui, QtWidgets
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -10,34 +9,121 @@ import os
 import sys
 import json
 import pandas as pd
-import PySide2
 import time
 import SimpleITK as sitk
 from pathlib import Path
 from os.path import join, basename
 from skimage.color import rgb2gray
 
-def standard_image_read(image_file_path) :
+# def standard_image_read(image_file_path) :
+#     """
+#     Read a .tif image into standard format for manipulation, a single channel image respresented a 2d numpy array
+#     of floats
+#
+#     Args:
+#         image_file_path (string): path to .tif of image file
+#
+#     Returns
+#         SITK transformation object and SITK registered image
+#     """
+#
+#     # read in image from file
+#     image = cv2.imread(image_file_path)
+#
+#     # handle potentially RGB or grayscale images
+#     if image.ndim == 2:
+#         image = image / 255.0
+#     elif image.ndim == 3:
+#         image = rgb2gray(image)
+#     return image
+
+def standard_image_read(image_file_path):
+
     """
-    Read a .tif image into standard format for manipulation, a single channel image respresented a 2d numpy array
-    of floats
+    Read image into a standard format
+
+    First attempt to read as standard image file (.tif, .png & cetera)
+    If fail try to read as DICOM
+    If still fail, show blank image
 
     Args:
-        image_file_path (string): path to .tif of image file
+        image_file_path (str): path to image file
 
-    Returns
-        SITK transformation object and SITK registered image
+    Returns:
+        image (np.array): single channel 8-bit image
+        image_read (bool): flag indicating whether image was successfully read
     """
 
-    # read in image from file
-    image = cv2.imread(image_file_path)
+    try :
 
-    # handle potentially RGB or grayscale images
-    if image.ndim == 2:
-        image = image / 255.0
-    elif image.ndim == 3:
-        image = rgb2gray(image)
-    return image
+        # try to read image as standard image file (.tif, .png & cetera)
+        # if it is none, try to read as dicom
+        image = cv2.imread(str(image_file_path))
+        if image is None:
+            image = pydicom.dcmread(str(image_file_path)).pixel_array
+
+        # if 3 channel, check if it is RGB or triple grayscale
+        if image.ndim == 3:
+            # image is triple grayscale if all channels are equal
+            if np.all(image[:,:,0] == image[:,:,1]) and np.all(image[:,:,0] == image[:,:,2]):
+                image = image[:,:,0]
+            # image is RGB
+            else:
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        # convert to uint8 if necessary
+        if image.dtype == 'float64':
+            image = (image * 255).astype('uint8')
+
+        image_read = True
+
+    # produce blank image with stamp if image cannot be read as either tif/png or DICOM
+    except:
+        # blank image
+        image = np.zeros((1536, 1536), dtype='uint8')
+
+        # text parameters
+        origin = (150, 800)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fontScale = 5
+        color = 255
+        thickness = 10
+
+        # write text on blank image
+        image = cv2.putText(image, 'image not read', origin, font, fontScale, color, thickness, cv2.LINE_AA)
+        image_read = False
+
+    # return image and flag indicating whether image was successfully read
+    return image, image_read
+
+def standardise_normalise_image(image_array):
+    """
+    Normalize images intensities to 0-255 range
+    Format original and normalised images uint8 image
+
+    Args:
+        image_array: numpy array of image intensities
+    """
+    min_pixel_value = image_array.min()
+    max_pixel_value = image_array.max()
+    normalized_image_array = (image_array - min_pixel_value) / (max_pixel_value - min_pixel_value)
+    normalized_image_array *= 255.0 / normalized_image_array.max()
+    normalized_image_array = normalized_image_array.astype("uint8")
+
+    # convert image array to RGB uint8 if necessary
+    if image_array.ndim == 2:
+        image_array = np.dstack((image_array, image_array, image_array))
+    elif image_array.ndim == 3:
+        image_array = image_array
+
+    # convert normalized image array to RGB uint8 if necessary
+    if normalized_image_array.ndim == 2:
+        normalized_image_array = np.dstack(
+            (normalized_image_array, normalized_image_array, normalized_image_array))
+    elif normalized_image_array.ndim == 3:
+        normalized_image_array = normalized_image_array
+
+    return image_array, normalized_image_array
 
 class QResizingPixmapLabel(QLabel):
     """
@@ -116,29 +202,21 @@ class QResizingPixmapLabel(QLabel):
         print("resize")
         if self._pixmap is not None:
 
-            print("resize")
-
             # calculate the new size of the image
             scaled = self._pixmap.scaled(self.width(), self.height(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
             image_height = scaled.height()
             image_width = scaled.width()
 
-
             # redraw both images
-            self.main_window.set_original_moving_image()
-            self.main_window.set_original_target_image()
+            self.main_window.draw_image(True)
+            self.main_window.draw_image(False)
 
             # reset the image and image widget size as attributes of the main window
-            # and recalculate and store scale factor
+            # and recalculate and store scale factors - can be different for each image if they have different original sizes
             self.main_window.image_display_size = (image_height, image_width)
             self.main_window.image_widget_size = (self.width(), self.height())
-            self.main_window.scale_factor = self.main_window.image_display_size[0] / self.main_window.current_moving_image_array_size[0]
-            print(f"image_height = {image_height}")
-            print(f"image_width = {image_width}")
-            print(f"widget height: {self.height()}")
-            print(f"widget width: {self.width()}")
-
-
+            self.main_window.moving_image_scale_factor = self.main_window.image_display_size[0] / self.main_window.current_moving_image_array_size[0]
+            self.main_window.target_image_scale_factor = self.main_window.image_display_size[0] / self.main_window.current_target_image_array_size[0]
 
             # set alignment of the image in the widget to center
             self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -150,9 +228,9 @@ class QResizingPixmapLabel(QLabel):
 
 # Equivalent fix to the above on Windows is this
 # thankyou to https://stackoverflow.com/questions/51367446/pyside2-application-failed-to-start
-dirname = os.path.dirname(PySide2.__file__)
-plugin_path = os.path.join(dirname, 'plugins', 'platforms')
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = plugin_path
+#dirname = os.path.dirname(PySide2.__file__)
+#plugin_path = os.path.join(dirname, 'plugins', 'platforms')
+#os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = plugin_path
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -183,6 +261,30 @@ class MainWindow(QtWidgets.QMainWindow):
         # select first alignment by default
         self.select_alignment(self.widgetAlignmentSelection.itemText(0))
 
+    def widget_to_image_coordinates(self, x_widget, y_widget):
+
+        """
+        Converts mouse position on widget to mouse position on image by calculating the margin
+        surrounding the image and subtracting it from the mouse position
+
+        Args:
+            x_widget, y_widget (int): x and y position in widget coordinates
+
+        Returns:
+            x_image, y_image (int): x and y position in image coordinates
+        """
+
+        # get sizes of widget and pixmap and use them to calculate margins
+        widget_width, widget_height = self.image_widget_size
+        pixmap_width, pixmap_height = self.image_display_size
+        left_margin = int((widget_width - pixmap_width) / 2)
+        top_margin = int((widget_height - pixmap_height) / 2)
+
+        # calculate image position of mouse pointer as mouse position minus margin
+        x_image = x_widget - left_margin
+        y_image = y_widget - top_margin
+
+        return x_image, y_image
 
     def set_paths(self, registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory):
 
@@ -324,7 +426,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # adding button text to each one as we go
         # finally add the buttons to the layout
         self.layoutPointControl = QtWidgets.QVBoxLayout()
-        #self.layoutPointControl = QtWidgets.QGridLayout()
         self.add_points_button = QtWidgets.QPushButton(self)
         self.add_points_button.setText('add current point pair')
         self.save_points_button = QtWidgets.QPushButton(self)
@@ -338,12 +439,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layoutPointControl.addWidget(self.save_points_button)
         self.layoutPointControl.addWidget(self.remove_points_button)
         self.layoutPointControl.addWidget(self.write_points_button)
-        #self.layoutPointControl.addWidget(self.point_table, 0, 0, 1, 2)
-        #self.layoutPointControl.addWidget(self.add_points_button, 1, 0, 1, 2)
-        #self.layoutPointControl.addWidget(self.save_points_button, 2, 0, 1, 2)
-        #self.layoutPointControl.addWidget(self.remove_points_button, 3, 0, 1, 2)
-        #self.layoutPointControl.addWidget(self.write_points_button, 4, 0, 1, 2)
-        #self.layoutPointControl.setRowStretch(0, 1)
         self.layoutPointWidget = QWidget()
         self.layoutPointWidget.setLayout(self.layoutPointControl)
         self.layoutPointWidget.setFixedWidth(250)
@@ -356,7 +451,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.point_table_label, 0, 2)
         self.layout.addWidget(self.target_image, 1, 0)
         self.layout.addWidget(self.moving_image, 1, 1)
-        #self.layout.addLayout(self.layoutPointControl, 1, 2)
         self.layout.addWidget(self.layoutPointWidget, 1, 2)
         self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
         self.layout.addWidget(self.widgetAlignmentSelection, 3, 0, 1, 2)
@@ -402,16 +496,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_moving_image_dir = self.current_alignment_row['moving image directory'].values[0]
 
         # read and store image arrays
-        self.current_moving_img_array = standard_image_read(join(self.current_moving_image_dir, self.current_moving_image_file))
-        self.current_target_img_array = standard_image_read(join(self.current_target_image_dir, self.current_target_image_file))
+        current_moving_img_array, self.current_moving_image_read = standard_image_read(join(self.current_moving_image_dir, self.current_moving_image_file))
+        current_target_img_array, self.current_target_image_read = standard_image_read(join(self.current_target_image_dir, self.current_target_image_file))
+
+        # standarise image format and normalise contents
+        self.current_moving_img_array, self.current_moving_img_array_norm = standardise_normalise_image(current_moving_img_array)
+        self.current_target_img_array, self.current_target_img_array_norm = standardise_normalise_image(current_target_img_array)
 
         # store real image sizes so we can calculate scale factors after any resizing
-        self.current_moving_image_array_size = self.current_moving_img_array.shape
-        self.current_target_image_array_size = self.current_target_img_array.shape
+        self.current_moving_image_array_size = self.current_moving_img_array.shape[:2]
+        self.current_target_image_array_size = self.current_target_img_array.shape[:2]
 
-        # add singleton dimension to images for channels
-        self.current_target_img_array = self.current_target_img_array[:, np.newaxis]
-        self.current_moving_img_array = self.current_moving_img_array[:, np.newaxis]
+        # calculate scale factors now
+        self.moving_image_scale_factor = self.current_moving_image_array_size[1] / self.moving_image.width()
+        self.target_image_scale_factor = self.current_target_image_array_size[1] / self.target_image.width()
 
         # set images
         self.set_original_target_image()
@@ -423,28 +521,28 @@ class MainWindow(QtWidgets.QMainWindow):
         if not existing_target_image_points == None :
 
             existing_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
-            new_target_image = cv2.imread(os.path.join(self.current_target_image_dir, self.current_target_image_file))
-            new_moving_image = cv2.imread(os.path.join(self.current_moving_image_dir, self.current_moving_image_file))
 
-            current_points = []
-            for i, target_image_point in enumerate(existing_target_image_points) :
-
-                moving_image_point = existing_moving_image_points[i]
-                point_pair = [target_image_point, moving_image_point]
-                current_points.append(point_pair)
-                colour = self.get_colour(i)
-                new_target_image = cv2.resize(new_target_image, (self.image_size[0], self.image_size[1]))
-                new_target_image = cv2.circle(new_target_image, (point_pair[0][0], point_pair[0][1]), 3, colour, -1)
-                new_moving_image = cv2.resize(new_moving_image, (self.image_size[0], self.image_size[1]))
-                new_moving_image = cv2.circle(new_moving_image, (point_pair[1][0], point_pair[1][1]), 3, colour, -1)
-
-                self.point_table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(point_pair[0])))
-                self.point_table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(point_pair[1])))
-
-            self.current_points = current_points
-
-            self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(new_target_image))
-            self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(new_moving_image))
+            # TODO - load existing points and trigger image drawing
+            #
+            # current_points = []
+            # for i, target_image_point in enumerate(existing_target_image_points) :
+            #
+            #     moving_image_point = existing_moving_image_points[i]
+            #     point_pair = [target_image_point, moving_image_point]
+            #     current_points.append(point_pair)
+            #     colour = self.get_colour(i)
+            #     new_target_image = cv2.resize(new_target_image, (self.image_size[0], self.image_size[1]))
+            #     new_target_image = cv2.circle(new_target_image, (point_pair[0][0], point_pair[0][1]), 3, colour, -1)
+            #     new_moving_image = cv2.resize(new_moving_image, (self.image_size[0], self.image_size[1]))
+            #     new_moving_image = cv2.circle(new_moving_image, (point_pair[1][0], point_pair[1][1]), 3, colour, -1)
+            #
+            #     self.point_table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(point_pair[0])))
+            #     self.point_table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(point_pair[1])))
+            #
+            # self.current_points = current_points
+            #
+            # self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(new_target_image))
+            # self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(new_moving_image))
             self.current_n_points = 3
             # turn off save button
             self.save_points_button.setDisabled(True)
@@ -452,12 +550,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         else:
 
+            # enable addition of points
             self.remove_points_button.setDisabled(True)
 
             # initialise point storage
-            self.current_points = []
-            self.current_target_image_point = None
+            # points added but not saved
+            self.stashed_target_image_points = None
+            self.stashed_moving_image_points = None
+
+            # points being added
             self.current_moving_image_point = None
+            self.current_target_image_point = None
 
             # set number of current points to 0
             self.current_n_points = 0
@@ -577,11 +680,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # set image
         self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array))
 
-
     def set_original_moving_image(self):
 
         self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array))
 
+    # TODO replace these two functions with one function that takes an argument for target or moving image
     def set_point_on_moving_image(self, event):
 
         if self.current_n_points == 3:
@@ -590,57 +693,121 @@ class MainWindow(QtWidgets.QMainWindow):
 
         else:
 
-            # extract coordinate
-            x = event.pos().x()
-            y = event.pos().y()
-            self.current_moving_image_point = (x, y)
+            # extract coordinates relative to widget
+            x_widget = event.pos().x()
+            y_widget = event.pos().y()
 
-            # draw point on image
-            # set colour based on whether this is first, second or third point
-            colour = self.get_colour(self.current_n_points)
-            new_moving_image = self.current_moving_image
-            new_moving_image = cv2.resize(new_moving_image, (self.image_size[0], self.image_size[1]))
-            new_moving_image = cv2.circle(new_moving_image, (x, y), 3, colour, -1)
-            self.new_moving_image = new_moving_image
-            self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(new_moving_image))
+            # then convert widget coords to coordinates relative to image as displayed in app
+            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+
+            # then convert these to coordinates relative to original image size
+            x_image_original = int(x_image_display / self.moving_image_scale_factor)
+            y_image_original = int(y_image_display / self.moving_image_scale_factor)
+
+            # store the current coordinate
+            self.current_moving_image_point = np.array([x_image_original, y_image_original])
+
+            # trigger redraw of image, including newly added point
+            self.draw_image(True)
 
             # enable adding the points if both points are set
             if (self.current_moving_image_point is not None) and (self.current_target_image_point is not None):
-
                 self.add_points_button.setDisabled(False)
 
     def set_point_on_target_image(self, event):
 
         if self.current_n_points == 3:
 
-            QtWidgets.QMessageBox.about(self, "points warning", "Cannot have more than 3 points in an image. Remove all points or select another image")
+            QtWidgets.QMessageBox.about(self, "points warning",
+                                        "Cannot have more than 3 points in an image. Remove all points or select another image")
 
         else:
 
-            # extract coordinate
-            x = event.pos().x()
-            y = event.pos().y()
-            self.current_target_image_point = (x, y)
+            # extract coordinates relative to widget
+            x_widget = event.pos().x()
+            y_widget = event.pos().y()
 
-            # draw point on image
-            # set colour based on whether this is first, second or third point
-            colour = self.get_colour(self.current_n_points)
-            new_target_image = self.current_target_image
-            new_target_image = cv2.resize(new_target_image, (self.image_size[0], self.image_size[1]))
-            new_target_image = cv2.circle(new_target_image, (x, y), 3, colour, -1)
-            self.new_target_image = new_target_image
-            self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(new_target_image))
+            # then convert widget coords to coordinates relative to image as displayed in app
+            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+
+            # then convert these to coordinates relative to original image size
+            x_image_original = int(x_image_display / self.target_image_scale_factor)
+            y_image_original = int(y_image_display / self.target_image_scale_factor)
+
+            # store the current coordinate
+            self.current_target_image_point = np.array([x_image_original, y_image_original])
+
+            # trigger redraw of image, including newly added point
+            self.draw_image(False)
 
             # enable adding the points if both points are set
-            if (self.current_target_image_point is not None) and (self.current_moving_image_point is not None) :
-
+            if (self.current_moving_image_point is not None) and (self.current_target_image_point is not None):
                 self.add_points_button.setDisabled(False)
+
+    def draw_image(self, moving_image):
+
+        if moving_image:
+
+            # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
+            self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array_norm))
+            canvas = self.moving_image.pixmap()
+            image = self.moving_image
+
+            # get points as list of tuples
+            existing_image_points = self.stashed_moving_image_points
+            current_image_point = self.current_moving_image_point
+
+        else :
+
+            # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
+            self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array_norm))
+            canvas = self.target_image.pixmap()
+            image = self.target_image
+
+            # get points as list of tuples
+            existing_image_points = self.stashed_target_image_points
+            current_image_point = self.current_target_image_point
+
+        # combine existing and current points into single list so we can draw all of them - either or both may be None
+        # TODO find a more elegant way of doing this
+        if existing_image_points is None and current_image_point is None:
+            image_points = []
+        elif existing_image_points is None and current_image_point is not None:
+            image_points = [current_image_point]
+        elif existing_image_points is not None and current_image_point is None:
+            image_points = existing_image_points
+        else:
+            image_points = existing_image_points + [current_image_point]
+
+        # loop through current points and draw them with the correct colour
+        for ind, point in enumerate(image_points):
+
+            # extract point coordinates, convert them to display image coordinates
+            # use index to set colour, and draw a circle at that point
+            if moving_image:
+                scale_factor = self.moving_image_scale_factor
+            else:
+                scale_factor = self.target_image_scale_factor
+            x_image_original, y_image_original = point
+            x_image_display = int(x_image_original * scale_factor)
+            y_image_display = int(y_image_original * scale_factor)
+            colour = self.get_colour(ind)
+
+            # Create a QPainter object and set the brush color and size
+            painter = QPainter(canvas)
+            painter.setPen(QPen(colour, 1, Qt.SolidLine))
+            painter.setBrush(QBrush(colour, Qt.SolidPattern))
+            painter.drawEllipse(x_image_display-4, y_image_display-4, 8, 8)
+
+            # Update the QLabel with the new pixmap and redraw
+            image.setPixmap(canvas)
+            image.repaint()
+            painter.end()
 
     def get_colour(self, ind):
 
-        colour = np.zeros(3, )
-        colour[ind] = 255
-        return tuple(colour)
+        colour_dict = {0: Qt.red, 1: Qt.cyan, 2: Qt.green}
+        return colour_dict[ind]
 
     # see https://stackoverflow.com/questions/34232632/convert-python-opencv-image-numpy-array-to-pyqt-qpixmap-image
     def convert_ndarray_to_QPixmap(self, img):
@@ -651,7 +818,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         qimg = QtGui.QImage(img.data, h, w, 3 * h, QtGui.QImage.Format_RGB888)
         qpixmap = QtGui.QPixmap(qimg)
-        #qpixmap = qpixmap.scaled(self.image_size[0], self.image_size[1])
         qpixmap = qpixmap.scaled(self.image_display_size[0], self.image_display_size[1])
         return qpixmap
 
@@ -663,28 +829,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.point_table.setItem(
             self.current_n_points, 1, QtWidgets.QTableWidgetItem(str(self.current_moving_image_point)))
 
-        # add to points list
-        self.current_points.append(
-            (self.current_target_image_point, self.current_moving_image_point))
+        # move added points from current to stashed
+        current_moving_image_point = self.current_moving_image_point
+        current_target_image_point = self.current_target_image_point
+        if self.stashed_moving_image_points is None:
+            self.stashed_moving_image_points = [current_moving_image_point]
+            self.stashed_target_image_points = [current_target_image_point]
+
+        else:
+            self.stashed_moving_image_points.append(current_moving_image_point)
+            self.stashed_target_image_points.append(current_target_image_point)
         self.current_target_image_point = None
         self.current_moving_image_point = None
 
         # increment number of added points
         self.current_n_points = self.current_n_points + 1
 
-        # store images with added points
-        self.current_target_image = self.new_target_image
-        self.current_moving_image = self.new_moving_image
-
         # update buttons
         self.add_points_button.setDisabled(True)
-
         if self.current_n_points < 3:
-
             self.remove_points_button.setDisabled(False)
-
         if self.current_n_points == 3:
-
             self.save_points_button.setDisabled(False)
 
         # don't let user change alignment selection with unsaved points added
@@ -692,20 +857,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def save_points(self):
 
-        # enter points in self.alignment
-        target_image_points = []
-        moving_image_points = []
-        for point_pair in self.current_points :
+        self.alignments.at[self.current_alignment_row_index, 'target image points'] = self.stashed_target_image_points
+        self.alignments.at[self.current_alignment_row_index, 'moving image points'] = self.stashed_moving_image_points
 
-            target_image_points.append(point_pair[0])
-            moving_image_points.append(point_pair[1])
-
-        self.alignments.at[self.current_alignment_row_index, 'target image points'] = target_image_points
-        self.alignments.at[self.current_alignment_row_index, 'moving image points'] = moving_image_points
-
-        # also add scale factors
-        self.alignments.at[self.current_alignment_row_index, 'target image scale factors'] = (self.current_target_image_y_scale_factor, self.current_target_image_x_scale_factor)
-        self.alignments.at[self.current_alignment_row_index, 'moving image scale factors'] = (self.current_moving_image_y_scale_factor, self.current_moving_image_x_scale_factor)
+        # also add scale factor
+        self.alignments.at[self.current_alignment_row_index, 'target image scale factors'] = (self.target_image_scale_factor, self.target_image_scale_factor)
+        self.alignments.at[self.current_alignment_row_index, 'moving image scale factors'] = (self.moving_image_scale_factor, self.moving_image_scale_factor)
 
         # turn off save button
         self.save_points_button.setDisabled(True)
@@ -735,9 +892,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.alignments.at[self.current_alignment_row_index, 'target image points'] is None:
             self.n_alignments_done = self.n_alignments_done - 1
 
-        # remove points from images
-        self.set_original_target_image()
-        self.set_original_moving_image()
+        # remove points from images and redraw
+        self.stashed_moving_image_points = None
+        self.stashed_target_image_points = None
+        self.current_moving_image_point = None
+        self.current_target_image_point = None
+        self.draw_image(True)
+        self.draw_image(False)
 
         # remove points from self.alignment
         self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
@@ -747,11 +908,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.alignments.at[self.current_alignment_row_index, 'target image scale factors'] = None
         self.alignments.at[self.current_alignment_row_index, 'moving image scale factors'] = None
 
-        # reset points and counter
+        # reset counter
         self.current_n_points = 0
-        self.current_points = []
-        self.current_target_image_point = None
-        self.current_moving_point = None
 
         # can't remove or save points if we don't have any
         self.remove_points_button.setDisabled(True)
@@ -766,36 +924,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.write_points_button.setDisabled(True)
 
         print ("points removed. n alignments done: ", self.n_alignments_done)
-
-#    def closeEvent(self, event):
-#        buttonReply = QtWidgets.QMessageBox.question(self, 'Save points', "Save points",
- #                                                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-#        if buttonReply == QtWidgets.QMessageBox.Yes:
-#            self.savePoints()
-#        else:
-#            print('No clicked.')
-
-
-#sys._excepthook = sys.excepthook
-
-
-#def exception_hook(exctype, value, traceback):
-#    print(exctype, value, traceback)
-#    sys._excepthook(exctype, value, traceback)
-#    sys.exit(1)
-
-
-#sys.excepthook = exception_hook
-
-
-#app = QtWidgets.QApplication(sys.argv)
-
-#sys.exit(app.exec_())
-
-#window = MainWindow()
-
-#window.show()
-#app.exec_()
 
 def call_app(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir, create_masks, mask_dir) :
 
