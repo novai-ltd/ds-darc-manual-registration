@@ -523,6 +523,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.save_points_button.setDisabled(True)
             self.remove_points_button.setDisabled(False)
 
+            # add to points table
+            existing_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+            for i, moving_image_point in enumerate(existing_moving_image_points):
+
+                target_image_point = existing_target_image_points[i]
+                self.point_table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(target_image_point)))
+                self.point_table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(moving_image_point)))
+
         else:
 
             # enable addition of points
@@ -611,8 +619,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 target_image_filename = row[1][2]
 
                 # read in target and moving images
-                moving_img = standard_image_read(join(moving_image_dir, moving_image_filename))
-                target_img = standard_image_read(join(target_image_dir, target_image_filename))
+                moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
+                target_img, target_img_read = standard_image_read(join(target_image_dir, target_image_filename))
 
                 # create mask of moving image
                 # ones to match moving image size
@@ -871,6 +879,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.alignments.at[self.current_alignment_row_index, 'target image points'] is None:
             self.n_alignments_done = self.n_alignments_done - 1
 
+        # remove points from self.alignment
+        self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
+        self.alignments.at[self.current_alignment_row_index, 'moving image points'] = None
+
         # remove points from images and redraw
         self.stashed_moving_image_points = None
         self.stashed_target_image_points = None
@@ -878,14 +890,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_target_image_point = None
         self.draw_image(True)
         self.draw_image(False)
-
-        # remove points from self.alignment
-        self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
-        self.alignments.at[self.current_alignment_row_index, 'moving image points'] = None
-
-        # and to be thorough the scale factors too
-        self.alignments.at[self.current_alignment_row_index, 'target image scale factors'] = None
-        self.alignments.at[self.current_alignment_row_index, 'moving image scale factors'] = None
 
         # reset counter
         self.current_n_points = 0
