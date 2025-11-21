@@ -335,10 +335,69 @@ class MainWindow(QtWidgets.QMainWindow):
         self.target_image.setPixmap(grey)
         self.moving_image.setPixmap(grey)
 
+        # add one as scrollable area
+        #self.scrollAreaTarget = QtWidgets.QScrollArea()
+        #self.scrollAreaTarget.setWidget(self.target_image)
+        #self.scrollAreaTarget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        #self.scrollAreaTarget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        #self.scrollAreaTarget.setWidgetResizable(True)
+
         # link mouse click on each image to function to place a point
         # use functools.partial to pass an extra argument to the function so it knows which image was clicked
-        self.target_image.mousePressEvent = functools.partial(self.set_point_on_image, False)
-        self.moving_image.mousePressEvent = functools.partial(self.set_point_on_image, True)
+        #self.target_image.mousePressEvent = functools.partial(self.set_point_on_image, False)
+        #self.moving_image.mousePressEvent = functools.partial(self.set_point_on_image, True)
+
+        # send mouse press events to filter so we can decide what to do based on whether they are left or right clicks
+        self.target_image.mousePressEvent = functools.partial(self.mousePressLRFilter, False)
+        self.moving_image.mousePressEvent = functools.partial(self.mousePressLRFilter, True)
+
+        # also filter mouse release events
+        self.target_image.mouseReleaseEvent = functools.partial(self.mouseReleaseFilter, False)
+        self.moving_image.mouseReleaseEvent = functools.partial(self.mouseReleaseFilter, True)
+
+    def mousePressLRFilter(self, is_moving_image, event):
+        """
+        A filter to decide what to do based on whether the mouse click was a left or right click
+
+        If left click, call the function to set a point on the image
+        If right, set up for click and drag (panning)
+
+        Args:
+            is_moving_image (bool): flag indicating whether the image clicked is the moving image (True) or target image (False)
+            event (QMouseEvent): mouse event
+
+        """
+        if event.button() == Qt.LeftButton:
+            self.set_point_on_image(is_moving_image, event)
+        elif event.button() == Qt.RightButton:
+
+            # extract coordinates of mouse click relative to widget
+            x_widget = event.pos().x()
+            y_widget = event.pos().y()
+
+            if is_moving_image:
+                image_str = "moving image"
+
+            else:
+                image_str = "target image"
+
+            print(f"Right button press detected on {image_str} at x:{str(x_widget)}, y:{str(y_widget)} - no action assigned yet.")
+
+    def mouseReleaseFilter(self, is_moving_image, event):
+        if event.button() == Qt.RightButton:
+
+            # extract coordinates of mouse click relative to widget
+            x_widget = event.pos().x()
+            y_widget = event.pos().y()
+
+            if is_moving_image:
+                image_str = "moving image"
+
+            else:
+                image_str = "target image"
+
+            print(f"Right button  released on {image_str} at x:{str(x_widget)}, y:{str(y_widget)} - no action assigned yet.")
+
 
     def set_alignments(self, registration_files_csv):
 
@@ -426,6 +485,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.moving_image_label, 0, 1)
         self.layout.addWidget(self.point_table_label, 0, 2)
         self.layout.addWidget(self.target_image, 1, 0)
+        #self.layout.addWidget(self.scrollAreaTarget, 1, 0)
         self.layout.addWidget(self.moving_image, 1, 1)
         self.layout.addWidget(self.layoutPointWidget, 1, 2)
         self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
@@ -681,6 +741,11 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Process a mouse click event on either the moving or target image display widget to set a point.
         """
+
+        ## can intercept left/right mouse clicks like this
+        #if event.button() != QtCore.Qt.LeftButton:
+        #    print("Not left button click - ignoring")
+        #else:
 
         # check if already 3 points - if so display warning and do not add point
         if self.current_n_points == 3:
