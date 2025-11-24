@@ -355,6 +355,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.target_image.mouseReleaseEvent = functools.partial(self.mouseReleaseFilter, False)
         self.moving_image.mouseReleaseEvent = functools.partial(self.mouseReleaseFilter, True)
 
+        # switch off mouse tracking for both images intially
+        # and link to tracking processing function
+        self.target_image.setMouseTracking(False)
+        self.target_image.mouseMoveEvent = functools.partial(self.process_mouse_move_on_image, False)
+        self.moving_image.setMouseTracking(False)
+        self.moving_image.mouseMoveEvent = functools.partial(self.process_mouse_move_on_image, True)
+
     def mousePressLRFilter(self, is_moving_image, event):
         """
         A filter to decide what to do based on whether the mouse click was a left or right click
@@ -375,6 +382,18 @@ class MainWindow(QtWidgets.QMainWindow):
             x_widget = event.pos().x()
             y_widget = event.pos().y()
 
+            # set click and drag positioning on the relevant image in IMAGE DISPLAY coordinates
+            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+            if is_moving_image:
+                self.moving_image.setMouseTracking(True)
+                self.moving_image_start_x = x_image_display
+                self.moving_image_start_y = y_image_display
+
+            else:
+                self.target_image.setMouseTracking(True)
+                self.target_image_start_x = x_image_display
+                self.target_image_start_y = y_image_display
+
             if is_moving_image:
                 image_str = "moving image"
 
@@ -390,6 +409,13 @@ class MainWindow(QtWidgets.QMainWindow):
             x_widget = event.pos().x()
             y_widget = event.pos().y()
 
+            # end click and drag positioning on the relevant image
+            if is_moving_image:
+                self.moving_image.setMouseTracking(False)
+
+            else:
+                self.target_image.setMouseTracking(False)
+
             if is_moving_image:
                 image_str = "moving image"
 
@@ -398,6 +424,97 @@ class MainWindow(QtWidgets.QMainWindow):
 
             print(f"Right button  released on {image_str} at x:{str(x_widget)}, y:{str(y_widget)} - no action assigned yet.")
 
+    def process_mouse_move_on_image(self, is_moving_image, event):
+
+        # decide which image is being moved over
+        if is_moving_image:
+
+            # process moving image mouse move if tracking on
+            if self.moving_image.hasMouseTracking():
+
+                # convert from widget coordinates to image display coordinates
+                x_widget = event.pos().x()
+                y_widget = event.pos().y()
+                x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+
+                # calculate coordinates of square to select and pass to draw function
+                square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
+                self.square_selection_coordinates_moving = square_selection_coordinates
+                self.draw_image(is_moving_image, square_selection_coordinates)
+        else:
+
+            # process target image mouse move if tracking on
+            if self.target_image.hasMouseTracking():
+                # convert from widget coordinates to image display coordinates
+                x_widget = event.pos().x()
+                y_widget = event.pos().y()
+                x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+
+                # calculate coordinates of square to select and pass to draw function
+                square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display,y_image_display)
+                self.square_selection_coordinates_moving = square_selection_coordinates
+                self.draw_image(is_moving_image, square_selection_coordinates)
+
+    def calculate_square_coordinates(self, is_moving_image, x_current, y_current):
+
+        """
+        Take the current mouse position in image display coordinates. Calculate the square coordinates for selection from this,
+        where the square has side length that is the minimum of the height and the width a rectangle defined by the current mouse position
+        and starting mouse position that fits within the image boundaries.
+
+        Args:
+            is_moving_image (bool): flag indicating whether the image being processed is the moving image (True) or target image (False)
+            x_current (int): x coordinate of mouse pointer in image display coordinates
+            y_current (int): y coordinate of mouse pointer in image display coordinates
+
+        Returns:
+            x_min (int): minimum x coordinate of square in image display coordinates
+            x_max (int): maximum x coordinate of square in image display coordinates
+            y_min (int): minimum y coordinate of square in image display coordinates
+            y_max (int): maximum y coordinate of square in image display coordinates
+
+        """
+        # get the starting mouse position
+        if is_moving_image:
+            x_start = self.moving_image_start_x
+            y_start = self.moving_image_start_y
+            image_width = self.moving_image.pixmap().width()
+            image_height = self.moving_image.pixmap().height()
+        else:
+            x_start = self.target_image_start_x
+            y_start = self.target_image_start_y
+            image_width = self.target_image.pixmap().width()
+            image_height = self.target_image.pixmap().height()
+
+        # protect edges of image display: current mouse position can go outside image boundaries but square selection cannot
+        # starting mouse position must be inside image boundaries already as set by mousePressEvent
+        x_current = max(0, x_current)
+        x_current = min(x_current, image_width-1)
+        y_current = max(0, y_current)
+        y_current = min(y_current, image_height-1)
+
+        if y_current+20 < y_start:
+            foo=1
+
+        # sort out start and end coordinates to draw rectangle
+        # find differences in x and y between current and start positions
+        # scale the maxmimum difference to the same absolute value as the minimum difference to make a square
+        # TODO feel there is a more elegant way to do this calculation
+        x_diff = x_current - x_start
+        y_diff = y_current - y_start
+        if np.abs(x_diff) > np.abs(y_diff):
+            x_current = x_start + np.sign(x_diff)*np.abs(y_diff)
+        else:
+            y_current = y_start + np.sign(y_diff)*np.abs(x_diff)
+
+        # calculate min and max x and y coordinates of square
+        x_max = max(x_current, x_start)
+        x_min = min(x_current, x_start)
+        y_max = max(y_current, y_start)
+        y_min = min(y_current, y_start)
+
+        # return square coordinates as a dictionary
+        return {"x_min":x_min, "x_max":x_max, "y_min":y_min, "y_max":y_max}
 
     def set_alignments(self, registration_files_csv):
 
@@ -742,11 +859,6 @@ class MainWindow(QtWidgets.QMainWindow):
         Process a mouse click event on either the moving or target image display widget to set a point.
         """
 
-        ## can intercept left/right mouse clicks like this
-        #if event.button() != QtCore.Qt.LeftButton:
-        #    print("Not left button click - ignoring")
-        #else:
-
         # check if already 3 points - if so display warning and do not add point
         if self.current_n_points == 3:
 
@@ -791,7 +903,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 if (self.current_moving_image_point is not None) and (self.current_target_image_point is not None):
                     self.add_points_button.setDisabled(False)
 
-    def draw_image(self, moving_image):
+    def draw_image(self, moving_image, square_selection_coordinates=None):
 
         """
         Draw either the moving or target image in the relevant display widget, drawing either the saved point pairs
@@ -842,6 +954,9 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 image_points = existing_image_points + [current_image_point]
 
+        # Create a QPainter object and set the brush color and size
+        painter = QPainter(canvas)
+
         # loop through current points and draw them with the correct colour
         for ind, point in enumerate(image_points):
 
@@ -856,16 +971,46 @@ class MainWindow(QtWidgets.QMainWindow):
             y_image_display = int(y_image_original / scale_factor)
             colour = self.get_colour(ind)
 
-            # Create a QPainter object and set the brush color and size
-            painter = QPainter(canvas)
             painter.setPen(QPen(colour, 1, Qt.SolidLine))
             painter.setBrush(QBrush(colour, Qt.SolidPattern))
             painter.drawEllipse(x_image_display-4, y_image_display-4, 8, 8)
 
-            # Update the QLabel with the new pixmap and redraw
-            image.setPixmap(canvas)
-            image.repaint()
-            painter.end()
+        # finally draw an outline of the selected area if we are given current_selection_end_xy
+        if square_selection_coordinates is not None:
+
+            if moving_image:
+                print(f"start xy: {int(self.moving_image_start_x)}, {int(self.moving_image_start_y)}")
+            else:
+                print(f"start xy: {int(self.target_image_start_x)}, {int(self.target_image_start_y)}")
+
+            # extract coordinates from dictionary and get height and width
+            x_min = square_selection_coordinates["x_min"]
+            x_max = square_selection_coordinates["x_max"]
+            y_min = square_selection_coordinates["y_min"]
+            y_max = square_selection_coordinates["y_max"]
+            width = x_max - x_min
+            height = y_max - y_min
+
+            # use top left corner, width and height to draw rectangle
+            # set pen to dashed line width 2 and no brush
+            rectangle = QRectF(x_min, y_min, width, height)
+            painter.setPen(QPen(Qt.black, 2, Qt.DashDotLine))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(rectangle)
+
+        # Update the QLabel with the new pixmap and redraw
+        image.setPixmap(canvas)
+        image.repaint()
+        painter.end()
+
+
+
+
+
+
+
+
+
 
     def get_colour(self, ind):
 
