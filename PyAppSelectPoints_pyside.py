@@ -409,7 +409,16 @@ class MainWindow(QtWidgets.QMainWindow):
             x_widget = event.pos().x()
             y_widget = event.pos().y()
 
-            # end click and drag positioning on the relevant image
+            # calculate square selection coordinates and redraw image with new coordinates
+            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+
+            # calculate coordinates of square to select and pass to draw function
+            # use these to then calculate the x and y limits in image coordinates
+            # then call the draw function with these limits to redraw the image
+            square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
+            self.update_image_scale_parameters(is_moving_image, square_selection_coordinates)
+            self.draw_image(is_moving_image)
+
             if is_moving_image:
                 self.moving_image.setMouseTracking(False)
 
@@ -493,9 +502,6 @@ class MainWindow(QtWidgets.QMainWindow):
         y_current = max(0, y_current)
         y_current = min(y_current, image_height-1)
 
-        if y_current+20 < y_start:
-            foo=1
-
         # sort out start and end coordinates to draw rectangle
         # find differences in x and y between current and start positions
         # scale the maxmimum difference to the same absolute value as the minimum difference to make a square
@@ -515,6 +521,69 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # return square coordinates as a dictionary
         return {"x_min":x_min, "x_max":x_max, "y_min":y_min, "y_max":y_max}
+
+    def update_image_scale_parameters(self, is_moving_image, square_selection_coordinates):
+
+        """
+        Takes a set of selected square coordinates in the current image display space. Uses the current x and y
+        limits in the original image space, the scale factor and the square coordinates to update the x and y limits and scale factor
+
+        Args:
+            is_moving_image (bool): flag indicating whether the image being processed is the moving image (True) or target image (False)
+            square_selection_coordinates (dict): dictionary containing the x and y min and max coordinates of the selected square in image display coordinates
+
+        """
+
+        # get the scale factor for the relevant image
+        if is_moving_image:
+            scale_factor = self.moving_image_scale_factor
+            display_size = self.moving_image.pixmap().width()
+        else:
+            scale_factor = self.target_image_scale_factor
+            display_size = self.target_image.pixmap().width()
+
+        # get the selected square coordinates in image display space
+        x_min_display = square_selection_coordinates["x_min"]
+        x_max_display = square_selection_coordinates["x_max"]
+        y_min_display = square_selection_coordinates["y_min"]
+        y_max_display = square_selection_coordinates["y_max"]
+
+        # get the current x and y limits in original image space
+        if is_moving_image:
+            x_min_original = self.current_moving_image_x_min
+            x_max_original = self.current_moving_image_x_max
+            y_min_original = self.current_moving_image_y_min
+            y_max_original = self.current_moving_image_y_max
+        else:
+            x_min_original = self.current_target_image_x_min
+            x_max_original = self.current_target_image_x_max
+            y_min_original = self.current_target_image_y_min
+            y_max_original = self.current_target_image_y_max
+
+        # self.moving_image_scale_factor = self.current_moving_image_array_size[1] / self.moving_image.width()
+
+        # new limits in original image space are old limits plus the selected square coordinates multiplied by scale factor
+        x_min_original_updated = int(x_min_original + (x_min_display*scale_factor))
+        x_max_original_updated = int(x_min_original + (x_max_display*scale_factor))
+        y_min_original_updated = int(y_min_original + (y_min_display*scale_factor))
+        y_max_original_updated = int(y_min_original + (y_max_display*scale_factor))
+
+        # calculate new scale factor
+        scale_factor_updated = (x_max_original_updated - x_min_original_updated) / display_size
+
+        # save the updated limits and scale factor
+        if is_moving_image:
+            self.current_moving_image_x_min = x_min_original_updated
+            self.current_moving_image_x_max = x_max_original_updated
+            self.current_moving_image_y_min = y_min_original_updated
+            self.current_moving_image_y_max = y_max_original_updated
+            self.moving_image_scale_factor = scale_factor_updated
+        else:
+            self.current_target_image_x_min = x_min_original_updated
+            self.current_target_image_x_max = x_max_original_updated
+            self.current_target_image_y_min = y_min_original_updated
+            self.current_target_image_y_max = y_max_original_updated
+            self.target_image_scale_factor = scale_factor_updated
 
     def set_alignments(self, registration_files_csv):
 
@@ -678,6 +747,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # calculate scale factors now
         self.moving_image_scale_factor = self.current_moving_image_array_size[1] / self.moving_image.width()
         self.target_image_scale_factor = self.current_target_image_array_size[1] / self.target_image.width()
+
+        # set x and y display limits in original image space
+        self.current_moving_image_x_min = 0
+        self.current_moving_image_x_max = self.current_moving_image_array_size[1]
+        self.current_moving_image_y_min = 0
+        self.current_moving_image_y_max = self.current_moving_image_array_size[0]
+        self.current_target_image_x_min = 0
+        self.current_target_image_x_max = self.current_target_image_array_size[1]
+        self.current_target_image_y_min = 0
+        self.current_target_image_y_max = self.current_target_image_array_size[0]
 
         # set images
         self.set_original_target_image()
@@ -873,14 +952,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # then convert widget coords to coordinates relative to image as displayed in app
             x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
-            # then convert these to coordinates relative to original image size
-            # get correct scale factor for whichever image is being processed
+
+            # get correct scale factor and offsets for whichever image is being processed
             if moving_image :
                 scale_factor = self.moving_image_scale_factor
+                x_min_original = self.current_moving_image_x_min
+                y_min_original = self.current_moving_image_y_min
             else:
                 scale_factor = self.target_image_scale_factor
-            x_image_original = int(x_image_display * scale_factor)
-            y_image_original = int(y_image_display * scale_factor)
+                x_min_original = self.current_target_image_x_min
+                y_min_original = self.current_target_image_y_min
+
+            # convert displayed image coordinates to original image coordinates
+            x_image_original = int(x_image_display * scale_factor) + x_min_original
+            y_image_original = int(y_image_display * scale_factor) + y_min_original
 
             # choose which image to further process
             if moving_image :
@@ -913,8 +998,18 @@ class MainWindow(QtWidgets.QMainWindow):
         # choose which image to process
         if moving_image:
 
+            # get the relevant original space image limits and scale factor
+            x_min = self.current_moving_image_x_min
+            x_max = self.current_moving_image_x_max
+            y_min = self.current_moving_image_y_min
+            y_max = self.current_moving_image_y_max
+
+            # crop the display image to the min and max limits
+            cropped_image_array = self.current_moving_img_array_norm[y_min:y_max, x_min:x_max, :].copy()
+
             # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
-            self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array_norm))
+            #self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array_norm))
+            self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(cropped_image_array))
             canvas = self.moving_image.pixmap()
             image = self.moving_image
 
@@ -927,8 +1022,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         else :
 
+            # get the relevant original space image limits and scale factor
+            x_min = self.current_target_image_x_min
+            x_max = self.current_target_image_x_max
+            y_min = self.current_target_image_y_min
+            y_max = self.current_target_image_y_max
+
+            # crop the display image to the min and max limits
+            cropped_image_array = self.current_target_img_array_norm[y_min:y_max, x_min:x_max, :].copy()
+
             # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
-            self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array_norm))
+            #self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array_norm))
+            self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(cropped_image_array))
             canvas = self.target_image.pixmap()
             image = self.target_image
 
@@ -960,15 +1065,31 @@ class MainWindow(QtWidgets.QMainWindow):
         # loop through current points and draw them with the correct colour
         for ind, point in enumerate(image_points):
 
-            # extract point coordinates, convert them to display image coordinates with the appropriate scale factor,
+            # extract point coordinates, convert them to display image coordinates with the appropriate scale factor
+            # check if point lies within the currently displayed area
             # use index to set colour, and draw a circle at that point
             if moving_image:
                 scale_factor = self.moving_image_scale_factor
+                x_min_original = self.current_moving_image_x_min
+                x_max_original = self.current_moving_image_x_max
+                y_min_original = self.current_moving_image_y_min
+                y_max_original = self.current_moving_image_y_max
+
             else:
                 scale_factor = self.target_image_scale_factor
+                x_min_original = self.current_target_image_x_min
+                x_max_original = self.current_target_image_x_max
+                y_min_original = self.current_target_image_y_min
+                y_max_original = self.current_target_image_y_max
+
+            # skip if point lies outside currently displayed area
             x_image_original, y_image_original = point
-            x_image_display = int(x_image_original / scale_factor)
-            y_image_display = int(y_image_original / scale_factor)
+            if (point[0] < x_min_original) or (point[0] > x_max_original) or (point[1] < y_min_original) or (point[1] > y_max_original):
+                continue
+
+            # if point lies within currently displayed area, convert to display coordinates and draw
+            x_image_display = int((x_image_original - x_min_original) / scale_factor)
+            y_image_display = int((y_image_original - y_min_original) / scale_factor)
             colour = self.get_colour(ind)
 
             painter.setPen(QPen(colour, 1, Qt.SolidLine))
@@ -994,7 +1115,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # use top left corner, width and height to draw rectangle
             # set pen to dashed line width 2 and no brush
             rectangle = QRectF(x_min, y_min, width, height)
-            painter.setPen(QPen(Qt.black, 2, Qt.DashDotLine))
+            painter.setPen(QPen(Qt.yellow, 2, Qt.DashDotLine))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(rectangle)
 
