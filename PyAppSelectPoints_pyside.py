@@ -312,7 +312,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # connect the widget to the function implementing selection of an alignment/image pair
         self.widgetAlignmentSelection.activated[str].connect(self.select_alignment)
 
-
     def set_up_image_display(self):
 
         """
@@ -334,18 +333,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # set the images to grey
         self.target_image.setPixmap(grey)
         self.moving_image.setPixmap(grey)
-
-        # add one as scrollable area
-        #self.scrollAreaTarget = QtWidgets.QScrollArea()
-        #self.scrollAreaTarget.setWidget(self.target_image)
-        #self.scrollAreaTarget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        #self.scrollAreaTarget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        #self.scrollAreaTarget.setWidgetResizable(True)
-
-        # link mouse click on each image to function to place a point
-        # use functools.partial to pass an extra argument to the function so it knows which image was clicked
-        #self.target_image.mousePressEvent = functools.partial(self.set_point_on_image, False)
-        #self.moving_image.mousePressEvent = functools.partial(self.set_point_on_image, True)
 
         # send mouse press events to filter so we can decide what to do based on whether they are left or right clicks
         self.target_image.mousePressEvent = functools.partial(self.mousePressLRFilter, False)
@@ -438,13 +425,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 msg = QtWidgets.QMessageBox()
                 msg.setIcon(QtWidgets.QMessageBox.Warning)
                 msg.setText("Zoom limit reached")
-                msg.setInformativeText(f"Cannot zoom in further. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.")
+                msg.setInformativeText(f"Cannot zoom in to selected area. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.")
                 msg.setWindowTitle("Zoom limit")
                 msg.exec_()
                 square_selection_coordinates = None
                 self.draw_image(is_moving_image, square_selection_coordinates)
 
-            # if zoomed image size is ok, update image
+            # if zoomed image size is ok, update image scale parameters and redraw image
             else:
                 self.update_image_scale_parameters(is_moving_image, square_selection_coordinates)
                 self.draw_image(is_moving_image)
@@ -522,7 +509,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # sort out start and end coordinates to draw rectangle
         # find differences in x and y between current and start positions
         # scale the maxmimum difference to the same absolute value as the minimum difference to make a square
-        # TODO feel there is a more elegant way to do this calculation
+        # TODO feel there is a probably more elegant way to do this calculation???
         x_diff = x_current - x_start
         y_diff = y_current - y_start
         if np.abs(x_diff) > np.abs(y_diff):
@@ -568,16 +555,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # get the current x and y limits in original image space
         if is_moving_image:
             x_min_original = self.current_moving_image_x_min
-            x_max_original = self.current_moving_image_x_max
             y_min_original = self.current_moving_image_y_min
-            y_max_original = self.current_moving_image_y_max
         else:
             x_min_original = self.current_target_image_x_min
-            x_max_original = self.current_target_image_x_max
             y_min_original = self.current_target_image_y_min
-            y_max_original = self.current_target_image_y_max
-
-        # self.moving_image_scale_factor = self.current_moving_image_array_size[1] / self.moving_image.width()
 
         # new limits in original image space are old limits plus the selected square coordinates multiplied by scale factor
         x_min_original_updated = int(x_min_original + (x_min_display*scale_factor))
@@ -682,17 +663,41 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layoutPointWidget.setLayout(self.layoutPointControl)
         self.layoutPointWidget.setFixedWidth(250)
 
+        # set up image zoom control buttons
+        self.target_image_reset_zoom_button = QtWidgets.QPushButton(self)
+        self.target_image_reset_zoom_button.setText('reset zoom')
+        self.moving_image_reset_zoom_button = QtWidgets.QPushButton(self)
+        self.moving_image_reset_zoom_button.setText('reset zoom')
+        self.target_image_undo_zoom_button = QtWidgets.QPushButton(self)
+        self.target_image_undo_zoom_button.setText('undo zoom')
+        self.moving_image_undo_zoom_button = QtWidgets.QPushButton(self)
+        self.moving_image_undo_zoom_button.setText('undo zoom')
+
+        # group zoom buttons into a pair for each image
+        self.layoutTargetImageZoomControl = QtWidgets.QHBoxLayout()
+        self.layoutTargetImageZoomControl.addWidget(self.target_image_reset_zoom_button)
+        self.layoutTargetImageZoomControl.addWidget(self.target_image_undo_zoom_button)
+        self.layoutMovingImageZoomControl = QtWidgets.QHBoxLayout()
+        self.layoutMovingImageZoomControl.addWidget(self.moving_image_reset_zoom_button)
+        self.layoutMovingImageZoomControl.addWidget(self.moving_image_undo_zoom_button)
+
         # set up overall layout with qgrid
         self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.target_image_label, 0, 0)
         self.layout.addWidget(self.moving_image_label, 0, 1)
         self.layout.addWidget(self.point_table_label, 0, 2)
-        self.layout.addWidget(self.target_image, 1, 0)
-        #self.layout.addWidget(self.scrollAreaTarget, 1, 0)
-        self.layout.addWidget(self.moving_image, 1, 1)
-        self.layout.addWidget(self.layoutPointWidget, 1, 2)
-        self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
-        self.layout.addWidget(self.widgetAlignmentSelection, 3, 0, 1, 2)
+        # self.layout.addWidget(self.target_image, 1, 0)
+        # self.layout.addWidget(self.moving_image, 1, 1)
+        # self.layout.addWidget(self.layoutPointWidget, 1, 2)
+        # self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
+        # self.layout.addWidget(self.widgetAlignmentSelection, 3, 0, 1, 2)
+        self.layout.addLayout(self.layoutTargetImageZoomControl, 1, 0)
+        self.layout.addLayout(self.layoutMovingImageZoomControl, 1, 1)
+        self.layout.addWidget(self.target_image, 2, 0)
+        self.layout.addWidget(self.moving_image, 2, 1)
+        self.layout.addWidget(self.layoutPointWidget, 2, 2)
+        self.layout.addWidget(self.image_selection_label, 3, 0, 1, 2)
+        self.layout.addWidget(self.widgetAlignmentSelection, 4, 0, 1, 2)
 
         # set overall layout as central widget
         self.widget = QtWidgets.QWidget()
