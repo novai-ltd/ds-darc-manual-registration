@@ -362,6 +362,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moving_image.setMouseTracking(False)
         self.moving_image.mouseMoveEvent = functools.partial(self.process_mouse_move_on_image, True)
 
+        # set minimum size for zooming in on
+        self.minimum_zoomed_image_size = 32
+
     def mousePressLRFilter(self, is_moving_image, event):
         """
         A filter to decide what to do based on whether the mouse click was a left or right click
@@ -405,6 +408,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def mouseReleaseFilter(self, is_moving_image, event):
         if event.button() == Qt.RightButton:
 
+            # turn off mouse tracking for area selection
+            if is_moving_image:
+                self.moving_image.setMouseTracking(False)
+
+            else:
+                self.target_image.setMouseTracking(False)
+
             # extract coordinates of mouse click relative to widget
             x_widget = event.pos().x()
             y_widget = event.pos().y()
@@ -416,22 +426,29 @@ class MainWindow(QtWidgets.QMainWindow):
             # use these to then calculate the x and y limits in image coordinates
             # then call the draw function with these limits to redraw the image
             square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
-            self.update_image_scale_parameters(is_moving_image, square_selection_coordinates)
-            self.draw_image(is_moving_image)
 
+            # protect against too much zooming in
+            # if size of zoomed image is less than minimum, alert user with popup and do not update image except to remove selection box
             if is_moving_image:
-                self.moving_image.setMouseTracking(False)
-
+                scale_factor = self.moving_image_scale_factor
             else:
-                self.target_image.setMouseTracking(False)
+                scale_factor = self.target_image_scale_factor
+            zoomed_image_size = (square_selection_coordinates["x_max"] - square_selection_coordinates["x_min"]) * scale_factor
+            if zoomed_image_size < self.minimum_zoomed_image_size:
+                msg = QtWidgets.QMessageBox()
+                msg.setIcon(QtWidgets.QMessageBox.Warning)
+                msg.setText("Zoom limit reached")
+                msg.setInformativeText(f"Cannot zoom in further. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.")
+                msg.setWindowTitle("Zoom limit")
+                msg.exec_()
+                square_selection_coordinates = None
+                self.draw_image(is_moving_image, square_selection_coordinates)
 
-            if is_moving_image:
-                image_str = "moving image"
-
+            # if zoomed image size is ok, update image
             else:
-                image_str = "target image"
+                self.update_image_scale_parameters(is_moving_image, square_selection_coordinates)
+                self.draw_image(is_moving_image)
 
-            print(f"Right button  released on {image_str} at x:{str(x_widget)}, y:{str(y_widget)} - no action assigned yet.")
 
     def process_mouse_move_on_image(self, is_moving_image, event):
 
