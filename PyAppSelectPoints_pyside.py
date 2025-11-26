@@ -423,10 +423,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 square_selection_coordinates = None
                 self.draw_image(is_moving_image, square_selection_coordinates)
 
-            # if zoomed image size is ok, update image scale parameters and redraw image
+            # if zoomed image size is ok, update image scale parameters, redraw image and enable undo zoom button
             else:
                 self.update_image_scale_parameters(is_moving_image, square_selection_coordinates)
                 self.draw_image(is_moving_image)
+                if is_moving_image:
+                    self.moving_image_undo_zoom_button.setEnabled(True)
+                else:
+                    self.target_image_undo_zoom_button.setEnabled(True)
+
 
 
     def process_mouse_move_on_image(self, is_moving_image, event):
@@ -547,10 +552,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # get the current x and y limits in original image space
         if is_moving_image:
             x_min_original = self.current_moving_image_x_min
+            x_max_original = self.current_moving_image_x_max
             y_min_original = self.current_moving_image_y_min
+            y_max_original = self.current_moving_image_y_max
         else:
             x_min_original = self.current_target_image_x_min
+            x_max_original = self.current_target_image_x_max
             y_min_original = self.current_target_image_y_min
+            y_max_original = self.current_target_image_y_max
 
         # new limits in original image space are old limits plus the selected square coordinates multiplied by scale factor
         x_min_original_updated = int(x_min_original + (x_min_display*scale_factor))
@@ -562,18 +571,30 @@ class MainWindow(QtWidgets.QMainWindow):
         scale_factor_updated = (x_max_original_updated - x_min_original_updated) / display_size
 
         # save the updated limits and scale factor
+        # put the old limits and scale factor into the history lists
         if is_moving_image:
             self.current_moving_image_x_min = x_min_original_updated
             self.current_moving_image_x_max = x_max_original_updated
             self.current_moving_image_y_min = y_min_original_updated
             self.current_moving_image_y_max = y_max_original_updated
             self.moving_image_scale_factor = scale_factor_updated
+            self.moving_image_x_min_history.append(x_min_original)
+            self.moving_image_x_max_history.append(x_max_original)
+            self.moving_image_y_min_history.append(y_min_original)
+            self.moving_image_y_max_history.append(y_max_original)
+            self.moving_image_scale_factor_history.append(scale_factor)
+
         else:
             self.current_target_image_x_min = x_min_original_updated
             self.current_target_image_x_max = x_max_original_updated
             self.current_target_image_y_min = y_min_original_updated
             self.current_target_image_y_max = y_max_original_updated
             self.target_image_scale_factor = scale_factor_updated
+            self.target_image_x_min_history.append(x_min_original)
+            self.target_image_x_max_history.append(x_max_original)
+            self.target_image_y_min_history.append(y_min_original)
+            self.target_image_y_max_history.append(y_max_original)
+            self.target_image_scale_factor_history.append(scale_factor)
 
     def set_alignments(self, registration_files_csv):
 
@@ -718,8 +739,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # connect zoom buttons to the appropriate functions
         self.moving_image_reset_zoom_button.clicked.connect(functools.partial(self.reset_zoom, True))
         self.target_image_reset_zoom_button.clicked.connect(functools.partial(self.reset_zoom, False))
-        #self.target_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, True))
-        #self.target_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, True))
+        self.moving_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, True))
+        self.target_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, False))
 
     # display eyes for selected alignment
     def select_alignment(self, alignment_str):
@@ -777,6 +798,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_target_image_x_max = self.current_target_image_array_size[1]
         self.current_target_image_y_min = 0
         self.current_target_image_y_max = self.current_target_image_array_size[0]
+
+        # for zooming functionality, store history of display limits and scale factors
+        self.moving_image_x_min_history = []
+        self.moving_image_x_max_history = []
+        self.moving_image_y_min_history = []
+        self.moving_image_y_max_history = []
+        self.target_image_x_min_history = []
+        self.target_image_x_max_history = []
+        self.target_image_y_min_history = []
+        self.target_image_y_max_history = []
+        self.moving_image_scale_factor_history = []
+        self.target_image_scale_factor_history = []
+
+        # when we load a new alignment, undo zoom button is disabled
+        self.moving_image_undo_zoom_button.setDisabled(True)
+        self.target_image_undo_zoom_button.setDisabled(True)
 
         # set images
         self.set_original_target_image()
@@ -1026,8 +1063,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.current_moving_image_y_min = 0
             self.current_moving_image_y_max = self.current_moving_image_array_size[0]
 
-            # finish by redrawing the moving image
-            self.draw_image(True)
+            # reset the zoom history
+            self.moving_image_x_min_history = []
+            self.moving_image_x_max_history = []
+            self.moving_image_y_min_history = []
+            self.moving_image_y_max_history = []
+            self.moving_image_scale_factor_history = []
+
+            # disable the undo zoom button as there is now no zoom history
+            self.moving_image_undo_zoom_button.setDisabled(True)
 
         else:
 
@@ -1040,8 +1084,60 @@ class MainWindow(QtWidgets.QMainWindow):
             self.current_target_image_y_min = 0
             self.current_target_image_y_max = self.current_target_image_array_size[0]
 
-            # finish by redrawing the target image
+            # reset the zoom history
+            self.target_image_x_min_history = []
+            self.target_image_x_max_history = []
+            self.target_image_y_min_history = []
+            self.target_image_y_max_history = []
+            self.target_image_scale_factor_history = []
+
+            # disable the undo zoom button as there is now no zoom history
+            self.target_image_undo_zoom_button.setDisabled(True)
+
+        # finish by redrawing the relevant image
+        self.draw_image(moving_image)
+
+
+
+    def undo_zoom(self, moving_image):
+
+        """
+        Called by the undo zoom button to revert to the previous zoom level on either the moving or target image.
+
+        Args:
+            moving_image (bool): flag to indicate whether to undo zoom on moving image (True) or target image (False)
+
+        """
+
+        if moving_image:
+
+            # pop the last zoom level from the history stack and set as current zoom level
+            self.current_moving_image_x_min = self.moving_image_x_min_history.pop()
+            self.current_moving_image_x_max = self.moving_image_x_max_history.pop()
+            self.current_moving_image_y_min = self.moving_image_y_min_history.pop()
+            self.current_moving_image_y_max = self.moving_image_y_max_history.pop()
+            self.moving_image_scale_factor = self.moving_image_scale_factor_history.pop()
+
+            # redraw the moving image at the reverted zoom level
+            self.draw_image(True)
+
+        else:
+
+            # pop the last zoom level from the history stack and set as current zoom level
+            self.current_target_image_x_min = self.target_image_x_min_history.pop()
+            self.current_target_image_x_max = self.target_image_x_max_history.pop()
+            self.current_target_image_y_min = self.target_image_y_min_history.pop()
+            self.current_target_image_y_max = self.target_image_y_max_history.pop()
+            self.target_image_scale_factor = self.target_image_scale_factor_history.pop()
+
+            # redraw the target image at the reverted zoom level
             self.draw_image(False)
+
+        # if we have undone all zoom levels, disable the undo zoom button
+        if moving_image and len(self.moving_image_x_min_history) == 0:
+            self.moving_image_undo_zoom_button.setDisabled(True)
+        elif (not moving_image) and len(self.target_image_x_min_history) == 0:
+            self.target_image_undo_zoom_button.setDisabled(True)
 
     def draw_image(self, moving_image, square_selection_coordinates=None):
 
