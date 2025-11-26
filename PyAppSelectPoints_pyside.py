@@ -357,7 +357,7 @@ class MainWindow(QtWidgets.QMainWindow):
         A filter to decide what to do based on whether the mouse click was a left or right click
 
         If left click, call the function to set a point on the image
-        If right, set up for click and drag (panning)
+        If right, set up for click and drag (panning/area selection)
 
         Args:
             is_moving_image (bool): flag indicating whether the image clicked is the moving image (True) or target image (False)
@@ -383,14 +383,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.target_image.setMouseTracking(True)
                 self.target_image_start_x = x_image_display
                 self.target_image_start_y = y_image_display
-
-            if is_moving_image:
-                image_str = "moving image"
-
-            else:
-                image_str = "target image"
-
-            print(f"Right button press detected on {image_str} at x:{str(x_widget)}, y:{str(y_widget)} - no action assigned yet.")
 
     def mouseReleaseFilter(self, is_moving_image, event):
         if event.button() == Qt.RightButton:
@@ -723,6 +715,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remove_points_button.setDisabled(True)
         self.write_points_button.setDisabled(True)
 
+        # connect zoom buttons to the appropriate functions
+        self.moving_image_reset_zoom_button.clicked.connect(functools.partial(self.reset_zoom, True))
+        self.target_image_reset_zoom_button.clicked.connect(functools.partial(self.reset_zoom, False))
+        #self.target_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, True))
+        #self.target_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, True))
+
     # display eyes for selected alignment
     def select_alignment(self, alignment_str):
 
@@ -910,8 +908,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 mask_img = np.ones_like(moving_img)
                 resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size)
 
-                print (target_image_filename)
-
                 # Convert grayscale to RGB so macOS Preview shows it properly
                 resampled_mask_img = np.clip(resampled_mask_img * 255, 0, 255).astype(np.uint8)
                 resampled_mask_img = cv2.cvtColor(resampled_mask_img, cv2.COLOR_GRAY2RGB)
@@ -1010,6 +1006,43 @@ class MainWindow(QtWidgets.QMainWindow):
                 if (self.current_moving_image_point is not None) and (self.current_target_image_point is not None):
                     self.add_points_button.setDisabled(False)
 
+    def reset_zoom(self, moving_image):
+
+        """
+        Called by the reset zoom button to reset the zoom level on either the moving or target image, by zooming out to show the full image.
+
+        Args:
+            moving_image (bool): If True, reset zoom on moving image; if False, reset zoom on target image.
+        """
+
+        if moving_image:
+
+            # reset scale factor for displaying full moving image
+            self.moving_image_scale_factor = self.current_moving_image_array_size[1] / self.moving_image.width()
+
+            # reset display limits to full moving image
+            self.current_moving_image_x_min = 0
+            self.current_moving_image_x_max = self.current_moving_image_array_size[1]
+            self.current_moving_image_y_min = 0
+            self.current_moving_image_y_max = self.current_moving_image_array_size[0]
+
+            # finish by redrawing the moving image
+            self.draw_image(True)
+
+        else:
+
+            # reset scale factor for displaying full target image
+            self.target_image_scale_factor = self.current_target_image_array_size[1] / self.target_image.width()
+
+            # reset display limits to full target image
+            self.current_target_image_x_min = 0
+            self.current_target_image_x_max = self.current_target_image_array_size[1]
+            self.current_target_image_y_min = 0
+            self.current_target_image_y_max = self.current_target_image_array_size[0]
+
+            # finish by redrawing the target image
+            self.draw_image(False)
+
     def draw_image(self, moving_image, square_selection_coordinates=None):
 
         """
@@ -1030,7 +1063,6 @@ class MainWindow(QtWidgets.QMainWindow):
             cropped_image_array = self.current_moving_img_array_norm[y_min:y_max, x_min:x_max, :].copy()
 
             # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
-            #self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array_norm))
             self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(cropped_image_array))
             canvas = self.moving_image.pixmap()
             image = self.moving_image
@@ -1054,7 +1086,6 @@ class MainWindow(QtWidgets.QMainWindow):
             cropped_image_array = self.current_target_img_array_norm[y_min:y_max, x_min:x_max, :].copy()
 
             # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
-            #self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array_norm))
             self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(cropped_image_array))
             canvas = self.target_image.pixmap()
             image = self.target_image
@@ -1121,11 +1152,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # finally draw an outline of the selected area if we are given current_selection_end_xy
         if square_selection_coordinates is not None:
 
-            if moving_image:
-                print(f"start xy: {int(self.moving_image_start_x)}, {int(self.moving_image_start_y)}")
-            else:
-                print(f"start xy: {int(self.target_image_start_x)}, {int(self.target_image_start_y)}")
-
             # extract coordinates from dictionary and get height and width
             x_min = square_selection_coordinates["x_min"]
             x_max = square_selection_coordinates["x_max"]
@@ -1145,15 +1171,6 @@ class MainWindow(QtWidgets.QMainWindow):
         image.setPixmap(canvas)
         image.repaint()
         painter.end()
-
-
-
-
-
-
-
-
-
 
     def get_colour(self, ind):
 
