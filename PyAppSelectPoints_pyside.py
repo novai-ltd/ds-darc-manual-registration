@@ -185,8 +185,8 @@ class QResizingPixmapLabel(QLabel):
             image_width = scaled.width()
 
             # redraw both images
-            self.main_window.draw_image(True)
-            self.main_window.draw_image(False)
+            self.main_window._draw_image(True)
+            self.main_window._draw_image(False)
 
             # reset the image and image widget size as attributes of the main window
             # and recalculate and store scale factors - can be different for each image if they have different original sizes
@@ -217,29 +217,29 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
 
         # store paths to required and optional output directories, and flags for optional ones.
-        self.set_paths(registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory)
+        self._set_paths(registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory)
 
         # read in any list of registration details to be done from .csv file
-        self.set_alignments(registration_files_csv)
+        self._set_alignments(registration_files_csv)
 
         # user selects alignments/image pairs from a pull down list widget
         # create the widget and populate the pull down list using file names from the alignments list
-        self.create_alignment_selection_widget()
+        self._create_alignment_selection_widget()
 
         # create the image display widgets
-        self.set_up_image_display()
+        self._set_up_image_display()
 
         # set up overall main window layout and connect controls to functions
-        self.set_up_layout()
-        self.connect_button_functionality()
+        self._set_up_layout()
+        self._connect_button_functionality()
 
         # set number of current points to 0
         self.current_n_points = 0
 
         # select first alignment by default
-        self.select_alignment(self.widgetAlignmentSelection.itemText(0))
+        self._select_alignment(self.widgetAlignmentSelection.itemText(0))
 
-    def widget_to_image_coordinates(self, x_widget, y_widget):
+    def _widget_to_image_coordinates(self, x_widget, y_widget):
 
         """
         Converts mouse position on widget to mouse position on image by calculating the margin
@@ -264,11 +264,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return x_image, y_image
 
-    def set_paths(self, registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory):
+    def _set_paths(self, registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory):
 
         """
-        Takes the required and optional path arguments together with flags for whether the optional ones should be used
-        and store so they can be accessed when needed later
+        Takes the path arguments together with flags for whether the extra outputs should be generated
+        store so they can be accessed when needed later
 
         Args:
             registration_dir (str): string representing root directory of outputs to write registration details to
@@ -292,7 +292,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.create_masks = create_masks
         self.mask_directory = mask_directory
 
-    def create_alignment_selection_widget(self):
+    def _create_alignment_selection_widget(self):
         """
         The user selects which alignment/image pair to do by selecting from a dropdown list.
         Here we create a widget for that list, and then populate that list with image names pulled from the alignments table
@@ -310,9 +310,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.widgetAlignmentSelection.addItem(alignment_txt)
 
         # connect the widget to the function implementing selection of an alignment/image pair
-        self.widgetAlignmentSelection.activated[str].connect(self.select_alignment)
+        self.widgetAlignmentSelection.activated[str].connect(self._select_alignment)
 
-    def set_up_image_display(self):
+    def _set_up_image_display(self):
 
         """
         Set up the QResizingPixmapLabels to display the target and moving images. Set their initial size and
@@ -335,24 +335,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moving_image.setPixmap(grey)
 
         # send mouse press events to filter so we can decide what to do based on whether they are left or right clicks
-        self.target_image.mousePressEvent = functools.partial(self.mousePressLRFilter, False)
-        self.moving_image.mousePressEvent = functools.partial(self.mousePressLRFilter, True)
+        self.target_image.mousePressEvent = functools.partial(self._mousePressLRFilter, False)
+        self.moving_image.mousePressEvent = functools.partial(self._mousePressLRFilter, True)
 
         # also filter mouse release events
-        self.target_image.mouseReleaseEvent = functools.partial(self.mouseReleaseFilter, False)
-        self.moving_image.mouseReleaseEvent = functools.partial(self.mouseReleaseFilter, True)
+        self.target_image.mouseReleaseEvent = functools.partial(self._mouseReleaseFilter, False)
+        self.moving_image.mouseReleaseEvent = functools.partial(self._mouseReleaseFilter, True)
 
         # switch off mouse tracking for both images intially
         # and link to tracking processing function
         self.target_image.setMouseTracking(False)
-        self.target_image.mouseMoveEvent = functools.partial(self.process_mouse_move_on_image, False)
+        self.target_image.mouseMoveEvent = functools.partial(self._process_mouse_move_on_image, False)
         self.moving_image.setMouseTracking(False)
-        self.moving_image.mouseMoveEvent = functools.partial(self.process_mouse_move_on_image, True)
+        self.moving_image.mouseMoveEvent = functools.partial(self._process_mouse_move_on_image, True)
 
         # set minimum size for zooming in on
         self.minimum_zoomed_image_size = 32
 
-    def mousePressLRFilter(self, is_moving_image, event):
+    def _mousePressLRFilter(self, is_moving_image, event):
         """
         A filter to decide what to do based on whether the mouse click was a left or right click
 
@@ -365,7 +365,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         """
         if event.button() == Qt.LeftButton:
-            self.set_point_on_image(is_moving_image, event)
+            self._set_point_on_image(is_moving_image, event)
         elif event.button() == Qt.RightButton:
 
             # extract coordinates of mouse click relative to widget
@@ -373,7 +373,7 @@ class MainWindow(QtWidgets.QMainWindow):
             y_widget = event.pos().y()
 
             # set click and drag positioning on the relevant image in IMAGE DISPLAY coordinates
-            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+            x_image_display, y_image_display = self._widget_to_image_coordinates(x_widget, y_widget)
             if is_moving_image:
                 self.moving_image.setMouseTracking(True)
                 self.moving_image_start_x = x_image_display
@@ -384,7 +384,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.target_image_start_x = x_image_display
                 self.target_image_start_y = y_image_display
 
-    def mouseReleaseFilter(self, is_moving_image, event):
+    def _mouseReleaseFilter(self, is_moving_image, event):
         if event.button() == Qt.RightButton:
 
             # turn off mouse tracking for area selection
@@ -399,12 +399,12 @@ class MainWindow(QtWidgets.QMainWindow):
             y_widget = event.pos().y()
 
             # calculate square selection coordinates and redraw image with new coordinates
-            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+            x_image_display, y_image_display = self._widget_to_image_coordinates(x_widget, y_widget)
 
             # calculate coordinates of square to select and pass to draw function
             # use these to then calculate the x and y limits in image coordinates
             # then call the draw function with these limits to redraw the image
-            square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
+            square_selection_coordinates = self._calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
 
             # protect against too much zooming in
             # if size of zoomed image is less than minimum, alert user with popup and do not update image except to remove selection box
@@ -421,20 +421,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 msg.setWindowTitle("Zoom limit")
                 msg.exec_()
                 square_selection_coordinates = None
-                self.draw_image(is_moving_image, square_selection_coordinates)
+                self._draw_image(is_moving_image, square_selection_coordinates)
 
             # if zoomed image size is ok, update image scale parameters, redraw image and enable undo zoom button
             else:
-                self.update_image_scale_parameters(is_moving_image, square_selection_coordinates)
-                self.draw_image(is_moving_image)
+                self._update_image_scale_parameters(is_moving_image, square_selection_coordinates)
+                self._draw_image(is_moving_image)
                 if is_moving_image:
                     self.moving_image_undo_zoom_button.setEnabled(True)
                 else:
                     self.target_image_undo_zoom_button.setEnabled(True)
 
-
-
-    def process_mouse_move_on_image(self, is_moving_image, event):
+    def _process_mouse_move_on_image(self, is_moving_image, event):
 
         # decide which image is being moved over
         if is_moving_image:
@@ -445,12 +443,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 # convert from widget coordinates to image display coordinates
                 x_widget = event.pos().x()
                 y_widget = event.pos().y()
-                x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+                x_image_display, y_image_display = self._widget_to_image_coordinates(x_widget, y_widget)
 
                 # calculate coordinates of square to select and pass to draw function
-                square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
+                square_selection_coordinates = self._calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
                 self.square_selection_coordinates_moving = square_selection_coordinates
-                self.draw_image(is_moving_image, square_selection_coordinates)
+                self._draw_image(is_moving_image, square_selection_coordinates)
         else:
 
             # process target image mouse move if tracking on
@@ -458,18 +456,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 # convert from widget coordinates to image display coordinates
                 x_widget = event.pos().x()
                 y_widget = event.pos().y()
-                x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+                x_image_display, y_image_display = self._widget_to_image_coordinates(x_widget, y_widget)
 
                 # calculate coordinates of square to select and pass to draw function
-                square_selection_coordinates = self.calculate_square_coordinates(is_moving_image, x_image_display,y_image_display)
+                square_selection_coordinates = self._calculate_square_coordinates(is_moving_image, x_image_display,y_image_display)
                 self.square_selection_coordinates_moving = square_selection_coordinates
-                self.draw_image(is_moving_image, square_selection_coordinates)
+                self._draw_image(is_moving_image, square_selection_coordinates)
 
-    def calculate_square_coordinates(self, is_moving_image, x_current, y_current):
+    def _calculate_square_coordinates(self, is_moving_image, x_current, y_current):
 
         """
         Take the current mouse position in image display coordinates. Calculate the square coordinates for selection from this,
-        where the square has side length that is the minimum of the height and the width a rectangle defined by the current mouse position
+        where the square has side length that is the minimum of the height and the width of a rectangle defined by the current mouse position
         and starting mouse position that fits within the image boundaries.
 
         Args:
@@ -523,7 +521,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # return square coordinates as a dictionary
         return {"x_min":x_min, "x_max":x_max, "y_min":y_min, "y_max":y_max}
 
-    def update_image_scale_parameters(self, is_moving_image, square_selection_coordinates):
+    def _update_image_scale_parameters(self, is_moving_image, square_selection_coordinates):
 
         """
         Takes a set of selected square coordinates in the current image display space. Uses the current x and y
@@ -596,7 +594,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.target_image_y_max_history.append(y_max_original)
             self.target_image_scale_factor_history.append(scale_factor)
 
-    def set_alignments(self, registration_files_csv):
+    def _set_alignments(self, registration_files_csv):
 
         """
         Read in a list of image pairs to be registered from file and store them
@@ -622,7 +620,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
 
-    def set_up_layout(self):
+    def _set_up_layout(self):
 
         """
         Create and organize the overall layout of the app elements
@@ -699,11 +697,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.target_image_label, 0, 0)
         self.layout.addWidget(self.moving_image_label, 0, 1)
         self.layout.addWidget(self.point_table_label, 0, 2)
-        # self.layout.addWidget(self.target_image, 1, 0)
-        # self.layout.addWidget(self.moving_image, 1, 1)
-        # self.layout.addWidget(self.layoutPointWidget, 1, 2)
-        # self.layout.addWidget(self.image_selection_label, 2, 0, 1, 2)
-        # self.layout.addWidget(self.widgetAlignmentSelection, 3, 0, 1, 2)
         self.layout.addLayout(self.layoutTargetImageZoomControl, 1, 0)
         self.layout.addLayout(self.layoutMovingImageZoomControl, 1, 1)
         self.layout.addWidget(self.target_image, 2, 0)
@@ -717,7 +710,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
 
-    def connect_button_functionality(self):
+    def _connect_button_functionality(self):
 
         """
         Set up functionality of controls in main layout by connecting buttons to functions
@@ -725,10 +718,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
 
         # connect point buttons to the appropriate functions
-        self.add_points_button.clicked.connect(self.add_points)
-        self.save_points_button.clicked.connect(self.save_points)
-        self.remove_points_button.clicked.connect(self.remove_points)
-        self.write_points_button.clicked.connect(self.write_points_to_file)
+        self.add_points_button.clicked.connect(self._add_points)
+        self.save_points_button.clicked.connect(self._save_points)
+        self.remove_points_button.clicked.connect(self._remove_points)
+        self.write_points_button.clicked.connect(self._write_points_to_file)
 
         # initially cannot add, save, write or remove points
         self.add_points_button.setDisabled(True)
@@ -737,13 +730,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.write_points_button.setDisabled(True)
 
         # connect zoom buttons to the appropriate functions
-        self.moving_image_reset_zoom_button.clicked.connect(functools.partial(self.reset_zoom, True))
-        self.target_image_reset_zoom_button.clicked.connect(functools.partial(self.reset_zoom, False))
-        self.moving_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, True))
-        self.target_image_undo_zoom_button.clicked.connect(functools.partial(self.undo_zoom, False))
+        self.moving_image_reset_zoom_button.clicked.connect(functools.partial(self._reset_zoom, True))
+        self.target_image_reset_zoom_button.clicked.connect(functools.partial(self._reset_zoom, False))
+        self.moving_image_undo_zoom_button.clicked.connect(functools.partial(self._undo_zoom, True))
+        self.target_image_undo_zoom_button.clicked.connect(functools.partial(self._undo_zoom, False))
 
     # display eyes for selected alignment
-    def select_alignment(self, alignment_str):
+    def _select_alignment(self, alignment_str):
 
         """
         Load the selected alignment/pair of eyes
@@ -769,7 +762,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.alignments['moving image file'] == self.current_moving_image_file)].head(1)
 
         self.current_alignment_row_index = self.current_alignment_row.index[0]
-
         self.current_target_image_dir = self.current_alignment_row['target image directory'].values[0]
         self.current_moving_image_dir = self.current_alignment_row['moving image directory'].values[0]
 
@@ -799,7 +791,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_target_image_y_min = 0
         self.current_target_image_y_max = self.current_target_image_array_size[0]
 
-        # for zooming functionality, store history of display limits and scale factors
+        # for zooming functionality, initialize empty history of display limits and scale factors
         self.moving_image_x_min_history = []
         self.moving_image_x_max_history = []
         self.moving_image_y_min_history = []
@@ -816,16 +808,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.target_image_undo_zoom_button.setDisabled(True)
 
         # set images
-        self.set_original_target_image()
-        self.set_original_moving_image()
+        self._set_original_target_image()
+        self._set_original_moving_image()
 
         # draw points if necessary
         # and repopulate table
         existing_target_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
         if not existing_target_image_points == None :
 
-            self.draw_image(True)
-            self.draw_image(False)
+            self._draw_image(True)
+            self._draw_image(False)
 
             self.current_n_points = 3
             # turn off save button
@@ -857,7 +849,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # set number of current points to 0
             self.current_n_points = 0
 
-    def write_points_to_file(self):
+    def _write_points_to_file(self):
 
         """
         Save all saved points to a csv file and a pkl file for later use
@@ -970,24 +962,24 @@ class MainWindow(QtWidgets.QMainWindow):
         time.sleep(1)
         self.close()
 
-    def set_original_target_image(self):
+    def _set_original_target_image(self):
 
         """
         Set the original target image (no point markers) in the target image display widget.
         """
 
         # set image
-        self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_target_img_array))
+        self.target_image.setPixmap(self._convert_ndarray_to_QPixmap(self.current_target_img_array))
 
-    def set_original_moving_image(self):
+    def _set_original_moving_image(self):
 
         """
         Set the original moving image (no point markers) in the moving image display widget.
         """
 
-        self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(self.current_moving_img_array))
+        self.moving_image.setPixmap(self._convert_ndarray_to_QPixmap(self.current_moving_img_array))
 
-    def set_point_on_image(self, moving_image, event):
+    def _set_point_on_image(self, moving_image, event):
 
         """
         Process a mouse click event on either the moving or target image display widget to set a point.
@@ -1006,7 +998,7 @@ class MainWindow(QtWidgets.QMainWindow):
             y_widget = event.pos().y()
 
             # then convert widget coords to coordinates relative to image as displayed in app
-            x_image_display, y_image_display = self.widget_to_image_coordinates(x_widget, y_widget)
+            x_image_display, y_image_display = self._widget_to_image_coordinates(x_widget, y_widget)
 
             # get correct scale factor and offsets for whichever image is being processed
             if moving_image :
@@ -1029,7 +1021,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # trigger redraw of image, including newly added point
                 # enable adding the points if both points are set
                 self.current_moving_image_point = np.array([x_image_original, y_image_original])
-                self.draw_image(True)
+                self._draw_image(True)
                 if (self.current_moving_image_point is not None) and (self.current_target_image_point is not None):
                     self.add_points_button.setDisabled(False)
 
@@ -1039,20 +1031,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 # trigger redraw of image, including newly added point
                 # enable adding the points if both points are set
                 self.current_target_image_point = np.array([x_image_original, y_image_original])
-                self.draw_image(False)
+                self._draw_image(False)
                 if (self.current_moving_image_point is not None) and (self.current_target_image_point is not None):
                     self.add_points_button.setDisabled(False)
 
-    def reset_zoom(self, moving_image):
+    def _reset_zoom(self, is_moving_image):
 
         """
         Called by the reset zoom button to reset the zoom level on either the moving or target image, by zooming out to show the full image.
 
         Args:
-            moving_image (bool): If True, reset zoom on moving image; if False, reset zoom on target image.
+            is_moving_image (bool): If True, reset zoom on moving image; if False, reset zoom on target image.
         """
 
-        if moving_image:
+        if is_moving_image:
 
             # reset scale factor for displaying full moving image
             self.moving_image_scale_factor = self.current_moving_image_array_size[1] / self.moving_image.width()
@@ -1095,21 +1087,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.target_image_undo_zoom_button.setDisabled(True)
 
         # finish by redrawing the relevant image
-        self.draw_image(moving_image)
+        self._draw_image(is_moving_image)
 
-
-
-    def undo_zoom(self, moving_image):
+    def _undo_zoom(self, is_moving_image):
 
         """
         Called by the undo zoom button to revert to the previous zoom level on either the moving or target image.
 
         Args:
-            moving_image (bool): flag to indicate whether to undo zoom on moving image (True) or target image (False)
+            is_moving_image (bool): flag to indicate whether to undo zoom on moving image (True) or target image (False)
 
         """
 
-        if moving_image:
+        if is_moving_image:
 
             # pop the last zoom level from the history stack and set as current zoom level
             self.current_moving_image_x_min = self.moving_image_x_min_history.pop()
@@ -1119,7 +1109,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.moving_image_scale_factor = self.moving_image_scale_factor_history.pop()
 
             # redraw the moving image at the reverted zoom level
-            self.draw_image(True)
+            self._draw_image(True)
 
         else:
 
@@ -1131,23 +1121,27 @@ class MainWindow(QtWidgets.QMainWindow):
             self.target_image_scale_factor = self.target_image_scale_factor_history.pop()
 
             # redraw the target image at the reverted zoom level
-            self.draw_image(False)
+            self._draw_image(False)
 
         # if we have undone all zoom levels, disable the undo zoom button
-        if moving_image and len(self.moving_image_x_min_history) == 0:
+        if is_moving_image and len(self.moving_image_x_min_history) == 0:
             self.moving_image_undo_zoom_button.setDisabled(True)
-        elif (not moving_image) and len(self.target_image_x_min_history) == 0:
+        elif (not is_moving_image) and len(self.target_image_x_min_history) == 0:
             self.target_image_undo_zoom_button.setDisabled(True)
 
-    def draw_image(self, moving_image, square_selection_coordinates=None):
+    def _draw_image(self, is_moving_image, square_selection_coordinates=None):
 
         """
         Draw either the moving or target image in the relevant display widget, drawing either the saved point pairs
         or the stashed points and/or the current point if set.
+
+        Args:
+            is_moving_image (bool): flag to indicate whether to undo zoom on moving image (True) or target image (False)
+            square_selection_coordinates (dict): optional dictionary containing coords of square to draw on image if we are doing area selection
         """
 
         # choose which image to process
-        if moving_image:
+        if is_moving_image:
 
             # get the relevant original space image limits and scale factor
             x_min = self.current_moving_image_x_min
@@ -1159,7 +1153,7 @@ class MainWindow(QtWidgets.QMainWindow):
             cropped_image_array = self.current_moving_img_array_norm[y_min:y_max, x_min:x_max, :].copy()
 
             # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
-            self.moving_image.setPixmap(self.convert_ndarray_to_QPixmap(cropped_image_array))
+            self.moving_image.setPixmap(self._convert_ndarray_to_QPixmap(cropped_image_array))
             canvas = self.moving_image.pixmap()
             image = self.moving_image
 
@@ -1182,7 +1176,7 @@ class MainWindow(QtWidgets.QMainWindow):
             cropped_image_array = self.current_target_img_array_norm[y_min:y_max, x_min:x_max, :].copy()
 
             # reset background to remove any previous point marking and get canvas to (re)draw points on using PyQt
-            self.target_image.setPixmap(self.convert_ndarray_to_QPixmap(cropped_image_array))
+            self.target_image.setPixmap(self._convert_ndarray_to_QPixmap(cropped_image_array))
             canvas = self.target_image.pixmap()
             image = self.target_image
 
@@ -1217,7 +1211,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # extract point coordinates, convert them to display image coordinates with the appropriate scale factor
             # check if point lies within the currently displayed area
             # use index to set colour, and draw a circle at that point
-            if moving_image:
+            if is_moving_image:
                 scale_factor = self.moving_image_scale_factor
                 x_min_original = self.current_moving_image_x_min
                 x_max_original = self.current_moving_image_x_max
@@ -1239,7 +1233,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # if point lies within currently displayed area, convert to display coordinates and draw
             x_image_display = int((x_image_original - x_min_original) / scale_factor)
             y_image_display = int((y_image_original - y_min_original) / scale_factor)
-            colour = self.get_colour(ind)
+            colour = self._get_colour(ind)
 
             painter.setPen(QPen(colour, 1, Qt.SolidLine))
             painter.setBrush(QBrush(colour, Qt.SolidPattern))
@@ -1268,7 +1262,7 @@ class MainWindow(QtWidgets.QMainWindow):
         image.repaint()
         painter.end()
 
-    def get_colour(self, ind):
+    def _get_colour(self, ind):
 
         """
         Take an index and return a colour for drawing the corresponding point pair.
@@ -1278,7 +1272,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return colour_dict[ind]
 
     # see https://stackoverflow.com/questions/34232632/convert-python-opencv-image-numpy-array-to-pyqt-qpixmap-image
-    def convert_ndarray_to_QPixmap(self, img):
+    def _convert_ndarray_to_QPixmap(self, img):
 
         """
         Convert a numpy ndarray image to a QPixmap, scaling it to fit the display widget.
@@ -1303,17 +1297,15 @@ class MainWindow(QtWidgets.QMainWindow):
         qpixmap = qpixmap.scaled(self.image_display_size[0], self.image_display_size[1])
         return qpixmap
 
-    def add_points(self):
+    def _add_points(self):
 
         """
         Display the current point pair in the points table and stash them for later saving to the alignments DataFrame.
         """
 
         # add to points table
-        self.point_table.setItem(
-            self.current_n_points, 0, QtWidgets.QTableWidgetItem(str(self.current_target_image_point)))
-        self.point_table.setItem(
-            self.current_n_points, 1, QtWidgets.QTableWidgetItem(str(self.current_moving_image_point)))
+        self.point_table.setItem(self.current_n_points, 0, QtWidgets.QTableWidgetItem(str(self.current_target_image_point)))
+        self.point_table.setItem(self.current_n_points, 1, QtWidgets.QTableWidgetItem(str(self.current_moving_image_point)))
 
         # move added points from current to stashed
         current_moving_image_point = self.current_moving_image_point
@@ -1341,7 +1333,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # don't let user change alignment selection with unsaved points added
         self.widgetAlignmentSelection.setDisabled(True)
 
-    def save_points(self):
+    def _save_points(self):
 
         """
         When all 3 point pairs have been added, save them to the alignments DataFrame.
@@ -1370,7 +1362,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.write_points_button.setDisabled(False)
 
-    def remove_points(self):
+    def _remove_points(self):
 
         """
         Remove the stashed or saved points for the current alignment.
@@ -1393,8 +1385,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stashed_target_image_points = None
         self.current_moving_image_point = None
         self.current_target_image_point = None
-        self.draw_image(True)
-        self.draw_image(False)
+        self._draw_image(True)
+        self._draw_image(False)
 
         # reset counter
         self.current_n_points = 0
