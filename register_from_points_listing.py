@@ -4,24 +4,13 @@ import os
 import pandas as pd
 from pathlib import Path
 from os.path import join
-from PyAppSelectPoints_pyside import standard_image_read
+from AppManualRegistration import standard_image_read
 import argparse
-
-def parse_point_pair(point_pair_str):
-
-    # strip the string of whitespace and parentheses
-    point_pair_str = point_pair_str.strip("()")
-    point_pair_str = point_pair_str.replace(" ", "")
-
-    # split the string by commas and convert to a tuple of floats
-    point_pair_list = point_pair_str.split(",")
-    point_pair_tuple = tuple(float(coord) for coord in point_pair_list)
-    return point_pair_tuple
 
 def register_images_from_points_listing(points_listing_filepath, transformation_dir, resampled_image_dir=None, create_masks=None, mask_dir=None):
 
     # open the points listing file
-    points_listing_df = pd.read_excel(points_listing_filepath, engine="openpyxl")
+    points_listing_df = pd.read_pickle(points_listing_filepath)
 
     # initialize lists to hold the paths of the transformation matrices and resampled images
     # and optionally the masks
@@ -38,16 +27,10 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         target_image_filename = row["target image file"]
         moving_image_dir = row["moving image directory"]
         moving_image_filename = row["moving image file"]
-        target_point_1 = parse_point_pair(row["target 1"])
-        target_point_2 = parse_point_pair(row["target 2"])
-        target_point_3 = parse_point_pair(row["target 3"])
-        moving_point_1 = parse_point_pair(row["moving 1"])
-        moving_point_2 = parse_point_pair(row["moving 2"])
-        moving_point_3 = parse_point_pair(row["moving 3"])
 
         # create numpy arrays from the points
-        target_points = np.array([target_point_1, target_point_2, target_point_3])
-        moving_points = np.array([moving_point_1, moving_point_2, moving_point_3])
+        target_points = np.array(row['target image points'])
+        moving_points = np.array(row['moving image points'])
 
         # calculate the affine transformation matrix
         transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
@@ -59,8 +42,8 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         transformation_matrix_filepaths.append(transformation_matrix_filepath)
 
         # read in both images
-        target_img = standard_image_read(join(target_image_dir, target_image_filename))
-        moving_img = standard_image_read(join(moving_image_dir, moving_image_filename))
+        target_img = standard_image_read(join(target_image_dir, target_image_filename))[0]
+        moving_img = standard_image_read(join(moving_image_dir, moving_image_filename))[0]
 
         # resample moving image according to transformation, to size of target image
         target_size = target_img.shape
@@ -107,7 +90,6 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
             # append mask filepath to list
             mask_filepaths.append(registered_mask_image_filepath)
 
-
     # add the output filepath lists to the dataframe
     points_listing_df["transformation matrix filepath"] = transformation_matrix_filepaths
     points_listing_df["resampled image filepath"] = resampled_image_filepaths
@@ -115,8 +97,9 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         points_listing_df["mask filepath"] = mask_filepaths
 
     # save the updated points listing dataframe to a new CSV file
-    output_xl_filepath = points_listing_filepath.replace(".xlsx", "_registered_details.xlsx")
-    points_listing_df.to_excel(output_xl_filepath, index=False)
+    # csv only as readability is more important here
+    output_csv_filepath = points_listing_filepath.replace(".pkl", "_registered_details.csv")
+    points_listing_df.to_csv(output_csv_filepath, index=False)
 
 def main():
 

@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 
-
 # read in original points file
 points_data = pd.read_csv("C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\transformation_files\\test_manual_registration_points.csv")
 

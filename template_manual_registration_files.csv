@@ -1,0 +1,3 @@
+target image file,moving image file,target image directory,moving image directory
+target_image_1.tif,moving_image_1.tif,path/to/target_image_directory,path/to/moving_image_directory
+target_image_2.tif,moving_image_2.tif,path/to/target_image_directory,path/to/moving_image_directory
