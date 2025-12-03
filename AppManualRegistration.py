@@ -757,7 +757,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_alignment = alignment_str
 
         # look up current alignment in alignments table
-        dummy_1, self.current_moving_image_file, dummy_2, self.current_target_image_file = alignment_str.split(' ')
+        # break up alignment string to get moving and target image file names according to how alignment strings are formatted
+        prefixed_current_moving_file_name, current_target_file_name = alignment_str.split(' to ')
+        current_moving_file_name = prefixed_current_moving_file_name.split(': ', 1)[1]
+        self.current_moving_image_file = current_moving_file_name
+        self.current_target_image_file = current_target_file_name
+
         self.current_alignment_row = self.alignments.loc[(self.alignments['target image file'] == self.current_target_image_file) & (
             self.alignments['moving image file'] == self.current_moving_image_file)].head(1)
 
