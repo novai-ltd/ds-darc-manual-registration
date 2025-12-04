@@ -664,7 +664,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remove_points_button = QtWidgets.QPushButton(self)
         self.remove_points_button.setText('remove all points')
         self.write_points_button = QtWidgets.QPushButton(self)
-        self.write_points_button.setText('write saved points to file and quit')
+        self.write_points_button.setText('write saved points to file')
         self.layoutPointControl.addWidget(self.point_table)
         self.layoutPointControl.addWidget(self.add_points_button)
         self.layoutPointControl.addWidget(self.save_points_button)
@@ -863,9 +863,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """
 
         # only enable if all points have been completed
-        if self.n_alignments_done < self.n_alignments :
+        #if self.n_alignments_done < self.n_alignments :
 
-            QtWidgets.QMessageBox.about(self, "points warning", "Cannot save to file before all required points have been saved")
+        #    QtWidgets.QMessageBox.about(self, "points warning", "Cannot save to file before all required points have been saved")
 
         # initialize lists of extra outputs: transformation matrix text files
         transformation_matrix_filenames = []
@@ -881,101 +881,108 @@ class MainWindow(QtWidgets.QMainWindow):
         # iterate through alignments generating a transformation matrix txt file and a sitk transformation object for each one
         for row in self.alignments.iterrows() :
 
-            # extract target and moving points
-            # no longer need to save scale factors as image display sizes vary anyway.
-            # points are saved in original image pixel space
-            moving_image_filename = row[1][3]
+            # only proceed if points have been saved for this alignment
             target_points = row[1][4]
-            moving_points = row[1][5]
 
-            # convert points to numpy arrays, allowing for scale
-            target_points = np.array(target_points)
-            moving_points = np.array(moving_points)
+            if not target_points == None :
 
-            # generate homogenous transformation matrix
-            transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
+                # extract target and moving points
+                # no longer need to save scale factors as image display sizes vary anyway.
+                # points are saved in original image pixel space
+                moving_image_filename = row[1][3]
+                moving_points = row[1][5]
 
-            # save homogenous transformation matrix, append paths to lists
-            moving_image_stem = Path(moving_image_filename).stem
-            transformation_matrix_filename = os.path.join(self.base_dir, f"{moving_image_stem}_transformation_matrix.txt")
-            np.savetxt(transformation_matrix_filename, transformation_matrix)
-            transformation_matrix_filenames.append(transformation_matrix_filename)
+                # convert points to numpy arrays, allowing for scale
+                target_points = np.array(target_points)
+                moving_points = np.array(moving_points)
 
-            # if option is selected, apply transformation to moving image and save
-            if self.resample_images :
+                # generate homogenous transformation matrix
+                transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
 
-                # get directories and target image filename
-                target_image_dir = row[1][0]
-                moving_image_dir = row[1][1]
-                target_image_filename = row[1][2]
+                # save homogenous transformation matrix, append paths to lists
+                moving_image_stem = Path(moving_image_filename).stem
+                transformation_matrix_filename = os.path.join(self.base_dir, f"{moving_image_stem}_transformation_matrix.txt")
+                np.savetxt(transformation_matrix_filename, transformation_matrix)
+                transformation_matrix_filenames.append(transformation_matrix_filename)
 
-                # read in target and moving images
-                moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
-                target_img, target_img_read = standard_image_read(join(target_image_dir, target_image_filename))
+                # if option is selected, apply transformation to moving image and save
+                if self.resample_images :
 
-                # resample moving image according to transformation, to size of target image
-                target_size = target_img.shape
-                resampled_img = cv2.warpAffine(moving_img,transformation_matrix,target_size)
+                    # get directories and target image filename
+                    target_image_dir = row[1][0]
+                    moving_image_dir = row[1][1]
+                    target_image_filename = row[1][2]
 
-                # optional clipping for some displays
-                # Convert grayscale to RGB so macOS Preview shows it properly
-                if np.max(resampled_img) <= 1.0:
-                    resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
-                resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
+                    # read in target and moving images
+                    moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
+                    target_img, target_img_read = standard_image_read(join(target_image_dir, target_image_filename))
 
-                # save registered image
-                # if no directory is given save in same directory as moving image
-                # otherwise save in specified directory
-                registered_image_filename = f"{moving_image_stem}_registered_manual.tif"
-                if self.resampled_image_directory is None :
-                    registered_image_filepath = join(moving_image_dir, registered_image_filename)
-                else :
-                    registered_image_filepath = join(self.resampled_image_directory, registered_image_filename)
-                cv2.imwrite(registered_image_filepath, resampled_img)
+                    # resample moving image according to transformation, to size of target image
+                    target_size = target_img.shape
+                    resampled_img = cv2.warpAffine(moving_img,transformation_matrix,target_size)
 
-            # if option is selected, create mask for resampled image and save
-            if self.create_masks:
+                    # optional clipping for some displays
+                    # Convert grayscale to RGB so macOS Preview shows it properly
+                    if np.max(resampled_img) <= 1.0:
+                        resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
+                    resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
 
-                # get directories and target image filename
-                target_image_dir = row[1][0]
-                moving_image_dir = row[1][1]
-                target_image_filename = row[1][2]
+                    # save registered image
+                    # if no directory is given save in same directory as moving image
+                    # otherwise save in specified directory
+                    registered_image_filename = f"{moving_image_stem}_registered_manual.tif"
+                    if self.resampled_image_directory is None :
+                        registered_image_filepath = join(moving_image_dir, registered_image_filename)
+                    else :
+                        registered_image_filepath = join(self.resampled_image_directory, registered_image_filename)
+                    cv2.imwrite(registered_image_filepath, resampled_img)
 
-                # read in target and moving images
-                moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
-                target_img, target_img_read = standard_image_read(join(target_image_dir, target_image_filename))
+                # if option is selected, create mask for resampled image and save
+                if self.create_masks:
 
-                # create mask of moving image
-                # ones to match moving image size
-                # resample moving image according to transformation, to size of target image
-                target_size = target_img.shape
-                mask_img = np.ones_like(moving_img)
-                resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size)
+                    # get directories and target image filename
+                    target_image_dir = row[1][0]
+                    moving_image_dir = row[1][1]
+                    target_image_filename = row[1][2]
 
-                # Convert grayscale to RGB so macOS Preview shows it properly
-                resampled_mask_img = np.clip(resampled_mask_img * 255, 0, 255).astype(np.uint8)
-                resampled_mask_img = cv2.cvtColor(resampled_mask_img, cv2.COLOR_GRAY2RGB)
+                    # read in target and moving images
+                    moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
+                    target_img, target_img_read = standard_image_read(join(target_image_dir, target_image_filename))
 
-                # save registered mask
-                # if no directory is given save in same directory as moving image
-                # otherwise save in specified directory
-                registered_mask_image_filename = f"{moving_image_stem}_registered_mask_manual.tif"
-                if self.mask_directory is None:
-                    registered_mask_image_filepath = join(moving_image_dir, registered_mask_image_filename)
-                else:
-                    registered_mask_image_filepath = join(self.mask_directory, registered_mask_image_filename)
-                cv2.imwrite(registered_mask_image_filepath, resampled_mask_img)
+                    # create mask of moving image
+                    # ones to match moving image size
+                    # resample moving image according to transformation, to size of target image
+                    target_size = target_img.shape
+                    mask_img = np.ones_like(moving_img)
+                    resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size)
+
+                    # Convert grayscale to RGB so macOS Preview shows it properly
+                    resampled_mask_img = np.clip(resampled_mask_img * 255, 0, 255).astype(np.uint8)
+                    resampled_mask_img = cv2.cvtColor(resampled_mask_img, cv2.COLOR_GRAY2RGB)
+
+                    # save registered mask
+                    # if no directory is given save in same directory as moving image
+                    # otherwise save in specified directory
+                    registered_mask_image_filename = f"{moving_image_stem}_registered_mask_manual.tif"
+                    if self.mask_directory is None:
+                        registered_mask_image_filepath = join(moving_image_dir, registered_mask_image_filename)
+                    else:
+                        registered_mask_image_filepath = join(self.mask_directory, registered_mask_image_filename)
+                    cv2.imwrite(registered_mask_image_filepath, resampled_mask_img)
+
+        # filter alignments to only those with saved points
+        completed_alignments = self.alignments.copy()
+        completed_alignments = completed_alignments[completed_alignments['target image points'].notnull()]
 
         # add new outputs to alignments DF
-        self.alignments['transformation_matrix_filenames'] = transformation_matrix_filenames
+        completed_alignments['transformation_matrix_filenames'] = transformation_matrix_filenames
 
         # save as alignments as both .csv (for readability) and pickle (for programming convenience)
-        self.alignments.to_csv(os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.csv'))
-        self.alignments.to_pickle(os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.pkl'))
+        completed_alignments.to_csv(os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.csv'))
+        completed_alignments.to_pickle(os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.pkl'))
 
-        # end program
-        time.sleep(1)
-        self.close()
+        # disable write points button again
+        self.write_points_button.setEnabled(False)
 
     def _set_original_target_image(self):
 
@@ -1373,9 +1380,7 @@ class MainWindow(QtWidgets.QMainWindow):
         print("n alignments: ", self.n_alignments)
 
         # if we have saved points for all alignments, enable writing of points to file
-        if self.n_alignments_done == self.n_alignments :
-
-            self.write_points_button.setDisabled(False)
+        self.write_points_button.setDisabled(False)
 
     def _remove_points(self):
 
