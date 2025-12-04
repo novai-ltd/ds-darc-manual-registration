@@ -870,6 +870,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # initialize lists of extra outputs: transformation matrix text files
         transformation_matrix_filenames = []
 
+        # create output directories if they do not exist
+        if not os.path.exists(self.base_dir):
+            os.makedirs(self.base_dir)
+        if self.resample_images and not os.path.exists(self.resampled_image_dir):
+            os.makedirs(self.resampled_image_directory)
+        if self.create_masks and not os.path.exists(self.mask_directory):
+            os.makedirs(self.mask_directory)
+
         # iterate through alignments generating a transformation matrix txt file and a sitk transformation object for each one
         for row in self.alignments.iterrows() :
 
@@ -950,7 +958,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # if no directory is given save in same directory as moving image
                 # otherwise save in specified directory
                 registered_mask_image_filename = f"{moving_image_stem}_registered_mask_manual.tif"
-                if self.resampled_image_directory is None:
+                if self.mask_directory is None:
                     registered_mask_image_filepath = join(moving_image_dir, registered_mask_image_filename)
                 else:
                     registered_mask_image_filepath = join(self.mask_directory, registered_mask_image_filename)
