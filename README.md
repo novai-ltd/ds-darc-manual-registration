@@ -25,13 +25,13 @@ Unlike other apps, there are currently no compiled executable versions of the ma
 
 ### Directory structure and set up
 
-Currently the app must be configured by manually editing the RunAppManualRegistration file. A future revision will present
-a better interface for setting these.
+The app is configured by calling the RunAppManualRegistration script with a set of parameters. There is
+no required folder structure for the images. The parameters are as follows:
 
 #### Required parameters
 Three parameters are required to be set:
 
-* registration_dir. This is a path to a directory where the required outputs (transformation files and list of image points) will be saved to
+* registration_dir. This is a string representing the  path to a directory where the required outputs (transformation files and list of image points) will be saved to
 * upload_name. This is a string prepended to the filename of the list of points, to identify this experiment or run of registrations.
 * registration_files_list. This is the path of a csv file listing the paths of the moving and target image files. This must be structured as follows
 
@@ -48,24 +48,31 @@ registered to the same target image, in which case the "target image file" will 
 There are four optional parameters for extra non default outputs:
 
 * resample_images. By default, the only registration outputs are the saved points and transforms, and the actual image resampling is done after marking all points
-with the register_from_points_listing scripts. If this argument is set to True, the moving images will be resampled by the app and the resampled images will be saved.
-* resampled_image_dir. If resample_images is true, use this argument to specify a directory to write the resampled images to. If resample_images
-is true and this is left unspecified, this defaults to being the same as the registration_dir.
+with the register_from_points_listing scripts. If this argument called, the moving images will be resampled by the app and the resampled images will be saved. If
+* resampled_image_dir. If resample_images is set, use this argument to specify a directory to write the resampled images to. If left unset, the resampled images will be saved to 
+the same directory as the moving image they were created from. If resample_images is not set, this argument is ignored. The resampled image directory will be created if it does not already exist.
 * create_masks. In some situations it may be useful to produce a binary mask, showing where in the space of the target image the moving image maps to
   (for example, if we want to calculate some statistic only where the registered moving image overlays the target image). If this
-  is set to true, these masks will be created and saved by the app.
-* mask_dir. This is the directory to save masks to if create_masks is True. If left unset, masks
-will be saved back in the same directory as the moving image they were created from.
+  option is set, these masks will be created and saved by the app.
+* resampled_mask_dir. This is the directory to save masks to if create_masks is True. If left unset, masks
+will be saved back in the same directory as the moving image they were created from. If create_masks is not set, this argument is ignored. The resampled mask directory will be created if it does not already exist.
 
   
 ### Running the app
-To run the app in Python, simply call the main script with the following command:
+To run the app in Python, simply call the RunAppManualRegistration script with the following command and arguments:
 
 ```
-python RunAppManualRegistration.py
+python RunAppManualRegistration.py path/to/registration_dir upload_name path/to/registration_files_list 
+[--resample_images] [--resampled_image_dir path/to/resampled_image_dir] [--create_masks] [--resampled_mask_dir path/to/resampled_mask_dir]
 ```
 
-or run the same script from your IDE.
+For example, to run the app with resampling and mask creation enabled and to write the resampled images and masks to particular directories you could use a command like this:
+
+```
+python RunAppManualRegistration.py /path/to/registration_dir experiment_01 /path/to/registration_files_list.csv --resample_images --resampled_image_dir /path/to/resampled_images --create_masks --resampled_mask_dir /path/to/resampled_masks
+```
+
+The same script can also be run from your IDE.
 
 ### Using the app
 
