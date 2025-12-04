@@ -1,22 +1,28 @@
+import argparse
+
 from AppManualRegistration import call_app
 
-# set required parameters:
-# directory to write points and transformations to
-registration_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\transformation_files"
-# stem for points filename
-upload_name = "test"
-# path to read list of registration files from
-registration_files_list = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\manual_registration_files.csv"
+def main():
 
-# set optional parameters:
-# flag whether to resample images and directory to save resampled images to if yes
-resample_images = True
-resampled_image_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\resampled_images"
-# flag whether to create mask image and directory to save mask images to if yes
-create_masks = True
-resampled_mask_image_dir = "C:\\Users\\Johnathan Young\\sandbox\\manual_registration_test\\resampled_masks"
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("registration_dir", type=str)
+    parser.add_argument("upload_name", type=str)
+    parser.add_argument("registration_files_list", type=str)
+    parser.add_argument("--resample_images", action="store_true")
+    parser.add_argument("--resampled_image_dir", type=str, default=None)
+    parser.add_argument("--create_masks", action="store_true")
+    parser.add_argument("--resampled_mask_dir", type=str, default=None)
+    args = parser.parse_args()
 
-# run the app with the parameters you have set
-call_app(registration_dir, upload_name, registration_files_list, resample_images=resample_images, resampled_image_dir=resampled_image_dir, create_masks=create_masks, mask_dir=resampled_mask_image_dir)
-print('done!')
+    call_app(
+        args.registration_dir,
+        args.upload_name,
+        args.registration_files_list,
+        args.resample_images,
+        args.resampled_image_dir,
+        args.create_masks,
+        args.resampled_mask_dir
+    )
 
+if __name__ == "__main__":
+    main()

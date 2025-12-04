@@ -873,9 +873,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # create output directories if they do not exist
         if not os.path.exists(self.base_dir):
             os.makedirs(self.base_dir)
-        if self.resample_images and not os.path.exists(self.resampled_image_dir):
+        if self.resample_images and not self.resampled_image_directory is None and not os.path.exists(self.resampled_image_directory):
             os.makedirs(self.resampled_image_directory)
-        if self.create_masks and not os.path.exists(self.mask_directory):
+        if self.create_masks and not self.mask_directory is None and not os.path.exists(self.mask_directory):
             os.makedirs(self.mask_directory)
 
         # iterate through alignments generating a transformation matrix txt file and a sitk transformation object for each one
@@ -917,8 +917,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 target_size = target_img.shape
                 resampled_img = cv2.warpAffine(moving_img,transformation_matrix,target_size)
 
+                # optional clipping for some displays
                 # Convert grayscale to RGB so macOS Preview shows it properly
-                resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
+                if np.max(resampled_img) <= 1.0:
+                    resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
                 resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
 
                 # save registered image
