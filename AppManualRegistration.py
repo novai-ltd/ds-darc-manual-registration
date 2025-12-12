@@ -113,7 +113,7 @@ class QResizingPixmapLabel(QLabel):
         main_window (MainWindow): main window of the application
     """
 
-    def __init__(self, main_window, moving_image):
+    def __init__(self, main_window):
         """
         Initialize the QLabel class
         Set initial parameters and pointer to main window
@@ -239,6 +239,24 @@ class MainWindow(QtWidgets.QMainWindow):
         # select first alignment by default
         self._select_alignment(self.widgetAlignmentSelection.itemText(0))
 
+        # Create a keyboard shortcut for undoing zoom on the moving image with Ctrl+U and on the target image with Shift+U
+        # don't call the _undo_zoom_shortcut function directly, as need to check history stacks to see if undo is possible
+        # call wrapper function instead
+        shortcut = QKeySequence(Qt.CTRL + Qt.Key_U)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(functools.partial(self._undo_zoom_shortcut, True))
+        shortcut = QKeySequence(Qt.SHIFT + Qt.Key_U)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(functools.partial(self._undo_zoom_shortcut, False))
+
+        # Create a keyboard shortcut for resetting the zoom on the moving image with Ctrl+R and on the target image with Shift+R
+        shortcut = QKeySequence(Qt.CTRL + Qt.Key_R)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(functools.partial(self._reset_zoom, True))
+        shortcut = QKeySequence(Qt.SHIFT + Qt.Key_R)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(functools.partial(self._reset_zoom, False))
+
     def _widget_to_image_coordinates(self, x_widget, y_widget):
 
         """
@@ -327,8 +345,8 @@ class MainWindow(QtWidgets.QMainWindow):
         grey.fill(QtGui.QColor('darkGray'))
 
         # create QLabels/QResizingPixmapLabels for target and moving images
-        self.target_image = QResizingPixmapLabel(self, False)
-        self.moving_image = QResizingPixmapLabel(self, True)
+        self.target_image = QResizingPixmapLabel(self)
+        self.moving_image = QResizingPixmapLabel(self)
 
         # set the images to grey
         self.target_image.setPixmap(grey)
@@ -583,6 +601,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.moving_image_scale_factor_history.append(scale_factor)
 
         else:
+
             self.current_target_image_x_min = x_min_original_updated
             self.current_target_image_x_max = x_max_original_updated
             self.current_target_image_y_min = y_min_original_updated
@@ -734,6 +753,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.target_image_reset_zoom_button.clicked.connect(functools.partial(self._reset_zoom, False))
         self.moving_image_undo_zoom_button.clicked.connect(functools.partial(self._undo_zoom, True))
         self.target_image_undo_zoom_button.clicked.connect(functools.partial(self._undo_zoom, False))
+
 
     # display eyes for selected alignment
     def _select_alignment(self, alignment_str):
@@ -1111,6 +1131,22 @@ class MainWindow(QtWidgets.QMainWindow):
         # finish by redrawing the relevant image
         self._draw_image(is_moving_image)
 
+    def _undo_zoom_shortcut(self, moving):
+
+        """
+        Wrapper for undo zoom to be called by keyboard shortcut.
+        Chooses which image to undo zoom on and checks if it has zoom history, then calls the undo zoom function if so.
+
+        Args:
+            moving (bool): If True, undo zoom on moving image; if False, undo zoom on target image.
+        """
+
+        if moving and self.moving_image_x_min_history:
+            self._undo_zoom(True)
+        elif not moving and self.target_image_x_min_history:
+            self._undo_zoom(False)
+
+
     def _undo_zoom(self, is_moving_image):
 
         """
@@ -1208,6 +1244,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if saved_image_points is None:
                 existing_image_points = self.stashed_target_image_points
                 current_image_point = self.current_target_image_point
+
 
         # either set saved image points as image points to draw, or use stashed/current points if no saved points
         if saved_image_points is not None:
