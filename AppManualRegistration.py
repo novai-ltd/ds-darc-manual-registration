@@ -698,6 +698,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.image_selection_label.setText('image pair selection')
         self.image_selection_label.setAlignment(QtCore.Qt.AlignCenter)
 
+        # set up radio button pair to switch between affine/three point pair transformation and perspective/four point pair transformation
+        self.perspective_transform_button = QtWidgets.QRadioButton("perspective", self)
+        self.affine_transform_button = QtWidgets.QRadioButton("affine", self)
+        self.perspective_transform_button.setChecked(True)
+        self.layoutTransformType = QtWidgets.QHBoxLayout()
+        self.layoutTransformType.addWidget(self.perspective_transform_button)
+        self.layoutTransformType.addWidget(self.affine_transform_button)
+
         # set up point saving buttons
         # create BoxLayouto to put them in then create the buttons
         # adding button text to each one as we go
@@ -711,6 +719,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remove_points_button.setText('remove all points')
         self.write_points_button = QtWidgets.QPushButton(self)
         self.write_points_button.setText('write saved points to file')
+        self.layoutPointControl.addLayout(self.layoutTransformType)
         self.layoutPointControl.addWidget(self.point_table)
         self.layoutPointControl.addWidget(self.add_points_button)
         self.layoutPointControl.addWidget(self.save_points_button)
@@ -1354,7 +1363,7 @@ class MainWindow(QtWidgets.QMainWindow):
         Take an index and return a colour for drawing the corresponding point pair.
         """
 
-        colour_dict = {0: Qt.red, 1: Qt.cyan, 2: Qt.green}
+        colour_dict = {0: Qt.red, 1: Qt.cyan, 2: Qt.green, 3:Qt.magenta}
         return colour_dict[ind]
 
     # see https://stackoverflow.com/questions/34232632/convert-python-opencv-image-numpy-array-to-pyqt-qpixmap-image
