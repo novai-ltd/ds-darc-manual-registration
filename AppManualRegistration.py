@@ -236,6 +236,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # set number of current points to 0
         self.current_n_points = 0
 
+        # add any previously saved points if they exist
+        self._load_saved_points()
+
         # select first alignment by default
         self._select_alignment(self.widgetAlignmentSelection.itemText(0))
 
@@ -638,6 +641,30 @@ class MainWindow(QtWidgets.QMainWindow):
             ['target image points', 'moving image points']] = None
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
+
+    def _load_saved_points(self):
+
+        """
+        Check if output pickle file exists from previous sessions, meaning points have been saved
+        If it does exist, load and copy the points into the alignments dataframe for the correct alignments
+        so that the user can continue from where they left off
+        """
+
+        # check if output pickle file exists
+        pickle_filepath = os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.pkl')
+        if os.path.exists(pickle_filepath):
+
+            # load saved points
+            saved_aligments_DF = pd.read_pickle(pickle_filepath)
+
+            # roll through saved alignments and copy points into current alignments DF if they exist
+            for index, row in saved_aligments_DF.iterrows():
+
+                if not row['target image points'] is None:
+
+                    self.alignments.at[index, 'target image points'] = row['target image points']
+                    self.alignments.at[index, 'moving image points'] = row['moving image points']
+                    self.n_alignments_done += 1
 
     def _set_up_layout(self):
 
