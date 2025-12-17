@@ -233,11 +233,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._set_up_layout()
         self._connect_button_functionality()
 
-        # set number of current points to 0
+        # set number of current points to 0 and required points to 3 for affine transform
         self.current_n_points = 0
+        self.current_required_points = 3
+        self.current_transform_type = 'affine'
 
         # add any previously saved points if they exist
         self._load_saved_points()
+
+        self.current_target_image_point = None
+        self.current_moving_image_point = None
 
         # select first alignment by default
         self._select_alignment(self.widgetAlignmentSelection.itemText(0))
@@ -701,10 +706,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # set up radio button pair to switch between affine/three point pair transformation and perspective/four point pair transformation
         self.perspective_transform_button = QtWidgets.QRadioButton("perspective", self)
         self.affine_transform_button = QtWidgets.QRadioButton("affine", self)
-        self.perspective_transform_button.setChecked(True)
         self.layoutTransformType = QtWidgets.QHBoxLayout()
         self.layoutTransformType.addWidget(self.perspective_transform_button)
         self.layoutTransformType.addWidget(self.affine_transform_button)
+        self.transform_radio_button_group = QGroupBox()
+        self.transform_radio_button_group.setLayout(self.layoutTransformType)
 
         # set up point saving buttons
         # create BoxLayouto to put them in then create the buttons
@@ -719,7 +725,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remove_points_button.setText('remove all points')
         self.write_points_button = QtWidgets.QPushButton(self)
         self.write_points_button.setText('write saved points to file')
-        self.layoutPointControl.addLayout(self.layoutTransformType)
+        self.layoutPointControl.addWidget(self.transform_radio_button_group)
         self.layoutPointControl.addWidget(self.point_table)
         self.layoutPointControl.addWidget(self.add_points_button)
         self.layoutPointControl.addWidget(self.save_points_button)
@@ -777,6 +783,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.save_points_button.clicked.connect(self._save_points)
         self.remove_points_button.clicked.connect(self._remove_points)
         self.write_points_button.clicked.connect(self._write_points_to_file)
+
+        # connect transform type radio buttons to the appropriate functions
+        self.perspective_transform_button.clicked.connect(self._set_transform_as_perspective)
+        self.affine_transform_button.clicked.connect(self._set_transform_as_affine)
 
         # initially cannot add, save, write or remove points
         self.add_points_button.setDisabled(True)
@@ -880,7 +890,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self._draw_image(True)
             self._draw_image(False)
 
-            self.current_n_points = 3
+            # set parameter and points table based on whether there are 3 or 4 existing points
+            if len(existing_target_image_points) == 3:
+                self.current_n_points = 3
+                self._set_transform_as_affine()
+                self.affine_transform_button.setChecked(True)
+            elif len(existing_target_image_points) == 4:
+                self.current_n_points = 4
+                self._set_transform_as_perspective()
+                self.perspective_transform_button.setChecked(True)
+
             # turn off save button
             self.save_points_button.setDisabled(True)
             self.remove_points_button.setDisabled(False)
@@ -909,6 +928,74 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # set number of current points to 0
             self.current_n_points = 0
+
+    def _set_transform_as_perspective(self):
+
+        """
+        Set the transformation type to perspective
+        Update the points table to four rows and copy in
+        any existing points that have already been set are copied in automatically.
+        Set internal variable to indicate perspective transform
+        """
+
+        print("Setting transformation type to perspective.")
+
+        # # update internal parameters
+        # self.current_transform_type = 'perspective'
+        # self.current_required_points = 4
+        #
+        # # update points table
+        # self.point_table.setRowCount(4)
+        #
+        # # if there are (three) saved points, make them stashed points
+        # # if the transformation type is "perspective" and we have 3 saved points, make them the stashed points
+        # # remove saved points
+        # if self.alignments.at[self.current_alignment_row_index, 'target image points'] and len(self.alignments.at[self.current_alignment_row_index, 'target image points']) == 3 :
+        #
+        #     self.stashed_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+        #     self.stashed_target_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
+        #     self.alignments.at[self.current_alignment_row_index, 'moving image points'] = None
+        #     self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
+
+    def _set_transform_as_affine(self):
+
+        """
+        Set the transformation type to affine
+        Update the points table to three rows and copy in any existing points that have already been set UNLESS four points
+        are set, in which case remove points with a warning.
+        Set internal variable to indicate perspective transform
+        """
+
+        print("Setting transformation type to affine.")
+
+        # # if there are four points saved
+        # # OR three points saved + one or two current points
+        # if self.current_n_points == 4 or (self.current_n_points == 3 and (self.current_target_image_point is not None or self.current_moving_image_point is not None)) :
+        #     warning = QtWidgets.QMessageBox.warning(self, "transform warning",
+        #                                                "Switching to affine transform will remove the most recent (magenta) point. Continue?",
+        #                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        #
+        #     if warning == QtWidgets.QMessageBox.No :
+        #         # reset button
+        #         self.perspective_transform_button.setChecked(True)
+        #         return
+        #
+        #     elif warning == QtWidgets.QMessageBox.Yes :
+        #
+        #         # if there are four points saved remove most recent point from table and internal storage
+        #         if self.current_n_points == 4 :
+        #             self.stashed_target_image_points = self.stashed_target_image_points[:3]
+        #             self.stashed_moving_image_points = self.stashed_moving_image_points[:3]
+        #
+        #         # change internal settings for affine transform
+        #         self.point_table.removeRow(3)
+        #         self.current_n_points = 3
+        #         self.current_target_image_point = None
+        #         self.current_moving_image_point = None
+        #         self._draw_image(False)
+        #         self._draw_image(True)
+        #         self.current_transform_type = 'affine'
+        #         self.current_required_points = 3
 
     def _write_points_to_file(self):
 
@@ -953,7 +1040,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 moving_points = np.array(moving_points)
 
                 # generate homogenous transformation matrix
-                transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
+                if len(target_points) == 3:
+                    transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
+                elif len(target_points) == 4:
+                    transformation_matrix = cv2.getPerspectiveTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
 
                 # save homogenous transformation matrix, append paths to lists
                 moving_image_stem = Path(moving_image_filename).stem
@@ -1063,10 +1153,10 @@ class MainWindow(QtWidgets.QMainWindow):
         Process a mouse click event on either the moving or target image display widget to set a point.
         """
 
-        # check if already 3 points - if so display warning and do not add point
-        if self.current_n_points == 3:
+        # check if already 3 or 4 points (depending on transform type) - if so display warning and do not add point
+        if self.current_n_points == self.current_required_points:
 
-            QtWidgets.QMessageBox.about(self, "points warning", "Cannot have more than 3 points in an image. Remove all points or select another image")
+            QtWidgets.QMessageBox.about(self, "points warning", f"Cannot have more than {self.current_required_points} points in an image for a {self.current_transform_type} transform. Remove all points or select another image")
 
         # if we have less than 3 points, add point
         else:
@@ -1285,6 +1375,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # either set saved image points as image points to draw, or use stashed/current points if no saved points
         if saved_image_points is not None:
             image_points = saved_image_points
+
+            # add current point if it exists
+            if self.current_transform_type == "perspective" and current_image_point is not None:
+                image_points = image_points + [current_image_point]
+
         else:
             # combine existing and current points into single list so we can draw all of them - either or both may be None
             # TODO find a more elegant way of doing this if possible?
@@ -1420,9 +1515,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # update buttons
         self.add_points_button.setDisabled(True)
-        if self.current_n_points < 3:
+        if self.current_n_points < self.current_required_points:
             self.remove_points_button.setDisabled(False)
-        if self.current_n_points == 3:
+        if self.current_n_points == self.current_required_points:
             self.save_points_button.setDisabled(False)
 
         # don't let user change alignment selection with unsaved points added
