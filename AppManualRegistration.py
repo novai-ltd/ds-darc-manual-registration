@@ -895,10 +895,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.current_n_points = 3
                 self._set_transform_as_affine()
                 self.affine_transform_button.setChecked(True)
+                self.current_required_points = 3
             elif len(existing_target_image_points) == 4:
                 self.current_n_points = 4
                 self._set_transform_as_perspective()
                 self.perspective_transform_button.setChecked(True)
+                self.current_required_points = 4
 
             # turn off save button
             self.save_points_button.setDisabled(True)
@@ -911,6 +913,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 target_image_point = existing_target_image_points[i]
                 self.point_table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(target_image_point)))
                 self.point_table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(moving_image_point)))
+
+            # enable moving to another image
+            self.widgetAlignmentSelection.setDisabled(False)
 
         else:
 
@@ -982,83 +987,56 @@ class MainWindow(QtWidgets.QMainWindow):
         # we need to catch and protect situations where there are already four points visible on at least one image
         # this can happen in several slightly different situations which all must be handled.
 
-        # case 1: four point pairs already saved
-        # n_current_points is 4 and stashed points are None or don't exist
-        if self.current_n_points == 4 and (hasattr(self, 'stashed_target_image_points') == False or self.stashed_target_image_points is None) :
+        # here we catch all different scenarios and handle them in the same way: not by removing the excess (over three)
+        # points and resetting the app state appropriately, instead by removing ALL saved/stashed/placed points for this
+        # image pair forcing the user to start again from scratch. This simplifies the code and the required updating of app state variables.
+        # warn user that this is happening and ask them to confirm, if they decline cancel the transform type switch.
+        # either we have 4 saved points, or 3 saved points and one or two currently being placed
+        if self.current_n_points == 4 or (self.current_n_points == 3 and (self.current_target_image_point is not None or self.current_moving_image_point is not None)) :
 
             # warn the user the most recently saved point will be removed and ask them to confirm
             warning = QtWidgets.QMessageBox.warning(self, "transform warning",
-                                                    "Switching to affine transform will remove the most recently saved (magenta) point. Continue?",
+                                                    "Switching to affine transform with more than three points will remove all points for this image pair. Continue?",
                                                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
 
+            # reset button if user selects no, opting not to switch transform types
             if warning == QtWidgets.QMessageBox.No:
-                # reset button if user selects no, opting not to switch transform types
                 self.perspective_transform_button.setChecked(True)
                 return
 
+            # if user selects yes, proceed to remove points all saved/stored points and switch transform type
             elif warning == QtWidgets.QMessageBox.Yes:
-                # remove most recently saved point from table and internal storage
-                # points will remain saved
-                self.alignments.at[self.current_alignment_row_index, 'target image points'] = self.alignments.at[self.current_alignment_row_index, 'target image points'][:3]
-                self.alignments.at[self.current_alignment_row_index, 'moving image points'] = self.alignments.at[self.current_alignment_row_index, 'moving image points'][:3]
-                self.current_n_points = 3
 
-                # as we have enough saved points, enable alignment selection
-                # and we can write points to file+
+                # use _remove_points function to clear everything
+                self._remove_points()
+
+                # set transform type buttons correctly
+                self.affine_transform_button.setChecked(True)
+                self.perspective_transform_button.setChecked(False)
+
+                # change internal settings for affine transform and redraw images to remove any points
+                self.point_table.removeRow(3)
+                self.current_transform_type = 'affine'
+                self.current_required_points = 3
+
+                # set buttons for no added points
                 self.widgetAlignmentSelection.setDisabled(False)
-                self.write_points_button.setDisabled(False)
+                self.add_points_button.setDisabled(True)
+                self.save_points_button.setDisabled(True)
+                self.remove_points_button.setDisabled(True)
+                self.write_points_button.setDisabled(True)
 
+        # if we have three or fewer points, we can just switch the transform type without removing any points
+        else :
 
-        # case 2: four point pairs added but not yet saved
-        # current_n_points is 4 and stashed points exist with length 4
-        elif self.current_n_points == 4 and len(self.stashed_target_image_points) == 4 :
-
-            # warn the user the most recently added point will be removed and ask them to confirm
-            warning = QtWidgets.QMessageBox.warning(self, "transform warning",
-                                                    "Switching to affine transform will remove the most recently added (magenta) point. Continue?",
-                                                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-
-            if warning == QtWidgets.QMessageBox.No:
-                # reset button if user selects no, opting not to switch transform types
-                self.perspective_transform_button.setChecked(True)
-                return
-
-            elif warning == QtWidgets.QMessageBox.Yes:
-                # remove most recently saved point from table and internal storage
-                # points will remain saved
-                self.stashed_target_image_points = self.stashed_target_image_points[:3]
-                self.stashed_moving_image_points = self.stashed_moving_image_points[:3]
-                self.current_n_points = 3
-
-        # case 3: 3 point pairs added, 1 or 2 points placed but not yet added
-        # current_n_points is 3 and either current_target_image_point or current_moving_image_point is not None
-        elif self.current_n_points == 3 and (self.current_target_image_point is not None or self.current_moving_image_point is not None) :
-
-                # warn the user the most recently added point will be removed and ask them to confirm
-                warning = QtWidgets.QMessageBox.warning(self, "transform warning",
-                                                        "Switching to affine transform will remove the most recently placed (magenta) point(s). Continue?",
-                                                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-
-                if warning == QtWidgets.QMessageBox.No:
-                    # reset button if user selects no, opting not to switch transform types
-                    self.perspective_transform_button.setChecked(True)
-                    return
-
-                elif warning == QtWidgets.QMessageBox.Yes:
-                    # remove most recently saved point from table and internal storage
-                    # points will remain saved
-                    # can no longer add current points either
-                    self.current_target_image_point = None
-                    self.current_moving_image_point = None
-                    self.add_points_button.setDisabled(True)
-
-
-        # change internal settings for affine transform, always executed if we reach this point
-        self.point_table.removeRow(3)
-        self._draw_image(False)
-        self._draw_image(True)
-        self.current_transform_type = 'affine'
-        self.current_required_points = 3
+            # change internal settings for affine transform and redraw images to remove any points
+            self.point_table.removeRow(3)
+            self.current_transform_type = 'affine'
+            self.current_required_points = 3
+            self._draw_image(False)
+            self._draw_image(True)
+            if self.current_n_points == 3 :
+                self.save_points_button.setDisabled(False)
 
     def _write_points_to_file(self):
 

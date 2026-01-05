@@ -32,8 +32,11 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         target_points = np.array(row['target image points'])
         moving_points = np.array(row['moving image points'])
 
-        # calculate the affine transformation matrix
-        transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
+        # calculate the affine or perspective transformation matrix based on length of points
+        if len (target_points) == 3:
+            transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
+        elif len (target_points) == 4:
+            transformation_matrix = cv2.getPerspectiveTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
 
         # save homogenous transformation matrix, append paths to lists
         moving_image_stem = Path(moving_image_filename).stem
