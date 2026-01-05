@@ -233,10 +233,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._set_up_layout()
         self._connect_button_functionality()
 
-        # set number of current points to 0 and required points to 3 for affine transform
+        # set number of current points to 0 and required points to 4 for perspective transform
         self.current_n_points = 0
-        self.current_required_points = 3
-        self.current_transform_type = 'affine'
+        self.current_required_points = 4
+        self.current_transform_type = 'perspective'
 
         # add any previously saved points if they exist
         self._load_saved_points()
@@ -929,6 +929,10 @@ class MainWindow(QtWidgets.QMainWindow):
             # set number of current points to 0
             self.current_n_points = 0
 
+            # set transform type to perspective by default
+            self._set_transform_as_perspective()
+            self.perspective_transform_button.setChecked(True)
+
     def _set_transform_as_perspective(self):
 
         """
@@ -940,22 +944,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
         print("Setting transformation type to perspective.")
 
-        # # update internal parameters
-        # self.current_transform_type = 'perspective'
-        # self.current_required_points = 4
-        #
-        # # update points table
-        # self.point_table.setRowCount(4)
-        #
-        # # if there are (three) saved points, make them stashed points
-        # # if the transformation type is "perspective" and we have 3 saved points, make them the stashed points
-        # # remove saved points
-        # if self.alignments.at[self.current_alignment_row_index, 'target image points'] and len(self.alignments.at[self.current_alignment_row_index, 'target image points']) == 3 :
-        #
-        #     self.stashed_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
-        #     self.stashed_target_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
-        #     self.alignments.at[self.current_alignment_row_index, 'moving image points'] = None
-        #     self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
+        # update internal parameters
+        self.current_transform_type = 'perspective'
+        self.current_required_points = 4
+
+        # update points table
+        self.point_table.setRowCount(4)
+
+        # as we will require at least one extra point pair to be added and saved, disable alignment selection
+        # unless we have no points at all saved
+        if not self.alignments.at[self.current_alignment_row_index, 'target image points'] == None :
+            self.widgetAlignmentSelection.setDisabled(True)
+
+        # if there are (three) saved points, make them stashed points
+        # if the transformation type is "perspective" and we have 3 saved points, make them the stashed points
+        # remove saved points
+        if self.alignments.at[self.current_alignment_row_index, 'target image points'] and len(self.alignments.at[self.current_alignment_row_index, 'target image points']) == 3 :
+
+            self.stashed_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+            self.stashed_target_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
+            self.alignments.at[self.current_alignment_row_index, 'moving image points'] = None
+            self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
+            self.current_n_points = 3
+            self.n_alignments_done = self.n_alignments_done - 1
 
     def _set_transform_as_affine(self):
 
@@ -968,34 +979,86 @@ class MainWindow(QtWidgets.QMainWindow):
 
         print("Setting transformation type to affine.")
 
-        # # if there are four points saved
-        # # OR three points saved + one or two current points
-        # if self.current_n_points == 4 or (self.current_n_points == 3 and (self.current_target_image_point is not None or self.current_moving_image_point is not None)) :
-        #     warning = QtWidgets.QMessageBox.warning(self, "transform warning",
-        #                                                "Switching to affine transform will remove the most recent (magenta) point. Continue?",
-        #                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        #
-        #     if warning == QtWidgets.QMessageBox.No :
-        #         # reset button
-        #         self.perspective_transform_button.setChecked(True)
-        #         return
-        #
-        #     elif warning == QtWidgets.QMessageBox.Yes :
-        #
-        #         # if there are four points saved remove most recent point from table and internal storage
-        #         if self.current_n_points == 4 :
-        #             self.stashed_target_image_points = self.stashed_target_image_points[:3]
-        #             self.stashed_moving_image_points = self.stashed_moving_image_points[:3]
-        #
-        #         # change internal settings for affine transform
-        #         self.point_table.removeRow(3)
-        #         self.current_n_points = 3
-        #         self.current_target_image_point = None
-        #         self.current_moving_image_point = None
-        #         self._draw_image(False)
-        #         self._draw_image(True)
-        #         self.current_transform_type = 'affine'
-        #         self.current_required_points = 3
+        # we need to catch and protect situations where there are already four points visible on at least one image
+        # this can happen in several slightly different situations which all must be handled.
+
+        # case 1: four point pairs already saved
+        # n_current_points is 4 and stashed points are None or don't exist
+        if self.current_n_points == 4 and (hasattr(self, 'stashed_target_image_points') == False or self.stashed_target_image_points is None) :
+
+            # warn the user the most recently saved point will be removed and ask them to confirm
+            warning = QtWidgets.QMessageBox.warning(self, "transform warning",
+                                                    "Switching to affine transform will remove the most recently saved (magenta) point. Continue?",
+                                                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+
+            if warning == QtWidgets.QMessageBox.No:
+                # reset button if user selects no, opting not to switch transform types
+                self.perspective_transform_button.setChecked(True)
+                return
+
+            elif warning == QtWidgets.QMessageBox.Yes:
+                # remove most recently saved point from table and internal storage
+                # points will remain saved
+                self.alignments.at[self.current_alignment_row_index, 'target image points'] = self.alignments.at[self.current_alignment_row_index, 'target image points'][:3]
+                self.alignments.at[self.current_alignment_row_index, 'moving image points'] = self.alignments.at[self.current_alignment_row_index, 'moving image points'][:3]
+                self.current_n_points = 3
+
+                # as we have enough saved points, enable alignment selection
+                # and we can write points to file+
+                self.widgetAlignmentSelection.setDisabled(False)
+                self.write_points_button.setDisabled(False)
+
+
+        # case 2: four point pairs added but not yet saved
+        # current_n_points is 4 and stashed points exist with length 4
+        elif self.current_n_points == 4 and len(self.stashed_target_image_points) == 4 :
+
+            # warn the user the most recently added point will be removed and ask them to confirm
+            warning = QtWidgets.QMessageBox.warning(self, "transform warning",
+                                                    "Switching to affine transform will remove the most recently added (magenta) point. Continue?",
+                                                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+
+            if warning == QtWidgets.QMessageBox.No:
+                # reset button if user selects no, opting not to switch transform types
+                self.perspective_transform_button.setChecked(True)
+                return
+
+            elif warning == QtWidgets.QMessageBox.Yes:
+                # remove most recently saved point from table and internal storage
+                # points will remain saved
+                self.stashed_target_image_points = self.stashed_target_image_points[:3]
+                self.stashed_moving_image_points = self.stashed_moving_image_points[:3]
+                self.current_n_points = 3
+
+        # case 3: 3 point pairs added, 1 or 2 points placed but not yet added
+        # current_n_points is 3 and either current_target_image_point or current_moving_image_point is not None
+        elif self.current_n_points == 3 and (self.current_target_image_point is not None or self.current_moving_image_point is not None) :
+
+                # warn the user the most recently added point will be removed and ask them to confirm
+                warning = QtWidgets.QMessageBox.warning(self, "transform warning",
+                                                        "Switching to affine transform will remove the most recently placed (magenta) point(s). Continue?",
+                                                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+
+                if warning == QtWidgets.QMessageBox.No:
+                    # reset button if user selects no, opting not to switch transform types
+                    self.perspective_transform_button.setChecked(True)
+                    return
+
+                elif warning == QtWidgets.QMessageBox.Yes:
+                    # remove most recently saved point from table and internal storage
+                    # points will remain saved
+                    # can no longer add current points either
+                    self.current_target_image_point = None
+                    self.current_moving_image_point = None
+                    self.add_points_button.setDisabled(True)
+
+
+        # change internal settings for affine transform, always executed if we reach this point
+        self.point_table.removeRow(3)
+        self._draw_image(False)
+        self._draw_image(True)
+        self.current_transform_type = 'affine'
+        self.current_required_points = 3
 
     def _write_points_to_file(self):
 
@@ -1324,6 +1387,8 @@ class MainWindow(QtWidgets.QMainWindow):
             square_selection_coordinates (dict): optional dictionary containing coords of square to draw on image if we are doing area selection
         """
 
+        current_image_point=None
+
         # choose which image to process
         if is_moving_image:
 
@@ -1529,9 +1594,12 @@ class MainWindow(QtWidgets.QMainWindow):
         When all 3 point pairs have been added, save them to the alignments DataFrame.
         """
 
-        # set stashed points to current alignment row in alignments DataFrame
+        # set current alignment row in alignments DataFrame to stashed points
+        # set stashed_points to None for next alignment
         self.alignments.at[self.current_alignment_row_index, 'target image points'] = self.stashed_target_image_points
         self.alignments.at[self.current_alignment_row_index, 'moving image points'] = self.stashed_moving_image_points
+        self.stashed_target_image_points = None
+        self.stashed_moving_image_points = None
 
         # turn off save button
         self.save_points_button.setDisabled(True)
