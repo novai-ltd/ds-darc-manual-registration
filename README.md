@@ -79,7 +79,8 @@ The same script can also be run from your IDE.
 #### App layout
 The app presents the user with a pair of images: the target image on the left and the moving image on the right. Above
 each image is a pair of buttons to control the zoom, and stretching underneath both is a dropdown menu to select an image pair.
-On the right hand side of the images is a table showing the locations of saved points, with buttons underneath to control
+On the right hand side of the images is a table showing the locations of saved points, with radio buttons above to select the
+transformation type and push buttons underneath to control
 saving, deleting and writing points.
 
 #### Placing points and zooming
@@ -92,7 +93,26 @@ of the height and width of the rectangle defined by the initial right click and 
 boundaries even if the cursor goes outside. You can zoom in multiple times, but the zoom will not be allowed if the selected
 area is below a set size. Click the undo zoom button to go back to the previous zoom level, and reset zoom to go back to fully
 zoomed out. When you zoom in or out, all the existing points are redrawn in the correct position in the zoomed view, including
-no longer being shown if they are outside of the new view when zooming in.
+no longer being shown if they are outside of the new view when zooming in. Keyboard shortcuts are also available for undoing
+and resetting zoom: ctrl+u for undo zoom on moving image, shift+u for undo zoom on target image, ctrl+r for reset zoom on moving image, shift+r for reset zoom on target image.
+
+#### Selecting a transformation type
+
+The app now offers two types of transformation: affine and perspective. These require three and four point pairs
+respectively to calculate the transform. Perspective transforms are more flexible, and in fact affine transforms are a
+special case of perspective transforms. This means that if the underlying
+transformation is in fact affine, this will still be captured properly with a perspective transform if points are placed
+accurately, so perspective transforms are the default when image pairs are loaded and are generally recommended. However 
+if finding four  point pairs is difficult, affine transforms may be used instead. 
+
+The user can switch between transformation types at any point by clicking the radio buttons above the points table. However, if the user tries to switch 
+from perspective to affine when more than three points are visible in either or both images, they will be warned
+that proceeding to affine will result in all points (not just the excess ones) being removed and will be asked to confirm
+they want this to happen, or cancel.
+
+As it is the default option, image pairs will usually be loaded with perspective transform selected. However
+if three point pairs have been saved for an affine transform, when this image pair is selected again the affine option will be selected.
+
 
 #### Adding and saving point pairs
 
@@ -131,6 +151,7 @@ but generally intersections of prominent blood vessels are used as such location
 as far as possible apart from each other on each image as this leads to less error in calculating the registration transform. However this 
 must be balanced against the need to clearly identify corresponding locations; in particular if one or both images in a pair
 are of poor quality or the images' fields of view do not overlap much there may be very little choice of clearly identifiable locations.
+Also if it is difficult to select four point pairs for a perspective transform, it is acceptable to use an affine transform with three point pairs instead.
 
 ## Generating resampled images from a script
 
