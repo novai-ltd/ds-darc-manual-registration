@@ -32,13 +32,8 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
         target_points = np.array(row['target image points'])
         moving_points = np.array(row['moving image points'])
 
-        # calculate the affine or perspective transformation matrix based on length of points
-        if len (target_points) == 3:
-            transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
-            affine = True
-        elif len (target_points) == 4:
-            transformation_matrix = cv2.getPerspectiveTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
-            affine = False
+        # calculate the affine transformation matrix
+        transformation_matrix = cv2.getAffineTransform(moving_points.astype(np.float32), target_points.astype(np.float32))
 
         # save homogenous transformation matrix, append paths to lists
         moving_image_stem = Path(moving_image_filename).stem
@@ -52,10 +47,7 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
 
         # resample moving image according to transformation, to size of target image
         target_size = target_img.shape
-        if affine:
-            resampled_img = cv2.warpAffine(moving_img, transformation_matrix, target_size)
-        else:
-            resampled_img = cv2.warpPerspective(moving_img, transformation_matrix, target_size)
+        resampled_img = cv2.warpAffine(moving_img, transformation_matrix, target_size)
 
         # Convert grayscale to RGB so macOS Preview shows it properly
         resampled_img = np.clip(resampled_img * 255, 0, 255).astype(np.uint8)
@@ -79,10 +71,7 @@ def register_images_from_points_listing(points_listing_filepath, transformation_
             # ones to match moving image size
             # resample moving image according to transformation, to size of target image
             mask_img = np.ones_like(moving_img)
-            if affine:
-                resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size, flags=cv2.INTER_NEAREST)
-            else:
-                resampled_mask_img = cv2.warpPerspective(mask_img, transformation_matrix, target_size, flags=cv2.INTER_NEAREST)
+            resampled_mask_img = cv2.warpAffine(mask_img, transformation_matrix, target_size, flags=cv2.INTER_NEAREST)
 
             # Convert grayscale to RGB so macOS Preview shows it properly
             resampled_mask_img = np.clip(resampled_mask_img * 255, 0, 255).astype(np.uint8)
