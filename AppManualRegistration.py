@@ -242,13 +242,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # select first alignment by default
         self._select_alignment(self.widgetAlignmentSelection.itemText(0))
 
-        # Create a keyboard shortcut for undoing zoom on the moving image with Ctrl+U and on the target image with Shift+U
+        # Create a keyboard shortcut for undoing zoom on the moving image with Ctrl+B and on the target image with Shift+B
         # don't call the _undo_zoom_shortcut function directly, as need to check history stacks to see if undo is possible
         # call wrapper function instead
-        shortcut = QKeySequence(Qt.CTRL + Qt.Key_U)
+        shortcut = QKeySequence(Qt.CTRL + Qt.Key_B)
         self.shortcut = QShortcut(shortcut, self)
         self.shortcut.activated.connect(functools.partial(self._undo_zoom_shortcut, True))
-        shortcut = QKeySequence(Qt.SHIFT + Qt.Key_U)
+        shortcut = QKeySequence(Qt.SHIFT + Qt.Key_B)
         self.shortcut = QShortcut(shortcut, self)
         self.shortcut.activated.connect(functools.partial(self._undo_zoom_shortcut, False))
 
@@ -259,6 +259,12 @@ class MainWindow(QtWidgets.QMainWindow):
         shortcut = QKeySequence(Qt.SHIFT + Qt.Key_R)
         self.shortcut = QShortcut(shortcut, self)
         self.shortcut.activated.connect(functools.partial(self._reset_zoom, False))
+
+        # Create a shortcut to add current point pair with A key
+        # don't call the _add_points function directly as need to check button is active to see if add is possible
+        shortcut = QKeySequence(Qt.Key_A)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(self._add_points_shortcut)
 
     def _widget_to_image_coordinates(self, x_widget, y_widget):
 
@@ -1382,6 +1388,16 @@ class MainWindow(QtWidgets.QMainWindow):
         qpixmap = QtGui.QPixmap(qimg)
         qpixmap = qpixmap.scaled(self.image_display_size[0], self.image_display_size[1])
         return qpixmap
+
+    def _add_points_shortcut(self):
+
+        """
+        Wrapper for _add_points to be called by keyboard shortcut.
+        Checks whether add points button is active and only calls _add_points function if so
+        """
+
+        if self.add_points_button.isEnabled():
+            self._add_points()
 
     def _add_points(self):
 
