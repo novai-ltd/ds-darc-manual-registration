@@ -92,7 +92,8 @@ of the height and width of the rectangle defined by the initial right click and 
 boundaries even if the cursor goes outside. You can zoom in multiple times, but the zoom will not be allowed if the selected
 area is below a set size. Click the undo zoom button to go back to the previous zoom level, and reset zoom to go back to fully
 zoomed out. When you zoom in or out, all the existing points are redrawn in the correct position in the zoomed view, including
-no longer being shown if they are outside of the new view when zooming in.
+no longer being shown if they are outside of the new view when zooming in. Keyboard shortcuts are also available for undoing and 
+resetting zoom: 'ctrl+b' for undo zoom on moving image, 'shift+b' for undo zoom on target image, 'ctrl+r' for reset zoom on moving image, 'shift+r' for reset zoom on target image.
 
 #### Adding and saving point pairs
 
@@ -101,9 +102,9 @@ and the positions of the point pair will be locked. The coordinates of the spots
 image will appear in the added points table. The process can then be repeated to add another pair of spots; notice that each
 pair of points is shown in a different colour so it can be clearly seen which point on the target image is paired with which 
 point on the moving image. When three point pairs have been added, that is sufficient to calculate a transform. The save current point
-pairs button will then be enabled, which writes the three point pairs to the internal database.
-
-#### Delete points
+pairs button will then be enabled, which writes the three point pairs to the internal database. Keyboard shortcuts are also available for adding and saving point pairs:
+'a' for add a point pair, and 's' for save current point pairs (with no modifiers). The keyboard shortcuts will only work when the app state allows the action to be done
+and the associated button is enabled.
 
 At any point where one or more point pairs has been added, the remove all points button will be enabled. Clicking it will remove *all* the point pairs
 for this pair of images. It is not currently possible to remove only the most recently added pair of points, or to specify
@@ -115,7 +116,10 @@ check the placement of a point pair before adding them.
 If no point pairs have been added, or all three have been added and saved, the dropdown menu for selecting a new image pair
 is enabled. Use this to move on to a new image pair when the current one has been finished, or to peek ahead. You can always navigate back
 to an image a second time and the saved points will be shown and can be revised, but only by removing the point pairs as
-described in the previous section.
+described in the previous section. Image pair selection can also be done using the keyboard shortcuts right and left arrow keys
+for next and previous image pair respectively. The keyboard shortcuts will only work when the app state allows the action to be done and the 
+dropdown menu is enabled. Selecting previous when at the first image pair, or next when at the last image pair, will have no effect, i.e. 
+there is no 'wrapping round' between the first and last image pairs.
 
 #### Saving the transformations
 

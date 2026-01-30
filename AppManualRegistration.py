@@ -266,6 +266,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.shortcut = QShortcut(shortcut, self)
         self.shortcut.activated.connect(self._add_points_shortcut)
 
+        # Create a shortcut to the save points function with S key
+        # Don't call the _save_points function directly as need to check if there are points to save
+        shortcut = QKeySequence(Qt.Key_S)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(self._save_points_shortcut)
+
+        # Create a shortcut to move to next image with right arrow key
+        # Don't call the _load_next_alignment function directly as need to check if there is a next image and if we can move to it
+        shortcut = QKeySequence(Qt.Key_Right)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(functools.partial(self._move_alignment_shortcut, True))
+
+        # Create a shortcut to move to previous image with left arrow key
+        shortcut = QKeySequence(Qt.Key_Left)
+        self.shortcut = QShortcut(shortcut, self)
+        self.shortcut.activated.connect(functools.partial(self._move_alignment_shortcut, False))
+
+
     def _widget_to_image_coordinates(self, x_widget, y_widget):
 
         """
@@ -786,6 +804,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.target_image_reset_zoom_button.clicked.connect(functools.partial(self._reset_zoom, False))
         self.moving_image_undo_zoom_button.clicked.connect(functools.partial(self._undo_zoom, True))
         self.target_image_undo_zoom_button.clicked.connect(functools.partial(self._undo_zoom, False))
+
+
+    def _move_alignment_shortcut(self, next_alignment):
+
+        """
+        Wrapper for select_alignment to be called by keyboard shortcut to go to next or previous alignment.
+        First checks if changing alignment is possible
+        If so, calls _select_alignment with the new alignment string to move forwards or backwards in the list
+
+        Args:
+            next_alignment (bool): If True, want to move to next alignment. If not, move to previous.
+        """
+
+        # only go ahead if we are allowed to change image pair
+        if self.widgetAlignmentSelection.isEnabled():
+            current_alignment_ind = int(self.current_alignment.split(':')[0]) - 1
+            # if we want to move to next, check we are not on last alignment
+            if next_alignment:
+                if current_alignment_ind < self.n_alignments - 1:
+                    # generate new alignment string and move to next alignment with select_alignment
+                    # update widgetAlignmentSelection to match
+                    new_alignment_txt = str(current_alignment_ind+2)+': '+self.alignments.loc[current_alignment_ind + 1, 'moving image file'] + ' to ' + self.alignments.loc[current_alignment_ind + 1, 'target image file']
+                    self._select_alignment(new_alignment_txt)
+                    self.widgetAlignmentSelection.setCurrentIndex(current_alignment_ind + 1)
+
+            # if not, check we are not on first alignment before moving back to previous
+            else:
+                if current_alignment_ind > 0:
+                    # generate new alignment string and move to previous alignment with select_alignment
+                    # update widgetAlignmentSelection to match
+                    new_alignment_txt = str(current_alignment_ind)+': '+self.alignments.loc[current_alignment_ind - 1, 'moving image file'] + ' to ' + self.alignments.loc[current_alignment_ind - 1, 'target image file']
+                    self._select_alignment(new_alignment_txt)
+                    self.widgetAlignmentSelection.setCurrentIndex(current_alignment_ind - 1)
 
 
     # display eyes for selected alignment
@@ -1434,6 +1485,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # don't let user change alignment selection with unsaved points added
         self.widgetAlignmentSelection.setDisabled(True)
+
+    def _save_points_shortcut(self):
+
+        """
+        Wrapper for _save_points to be called by keyboard shortcut.
+        Checks whether save points button is active and only calls _save_points function if so
+        """
+
+        if self.save_points_button.isEnabled():
+            self._save_points()
 
     def _save_points(self):
 
