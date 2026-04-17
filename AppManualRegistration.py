@@ -351,7 +351,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # for each row, join the name of the moving image to the name of the target image to create a dropdown menu item
             # then add the item to the widget
-            alignment_txt = str(i+1) + ': ' + row[1][3] + ' to ' + row[1][2]
+            moving_image_file = row[1]['moving image file']
+            target_image_file = row[1]['target image file']
+            alignment_txt = str(i+1) + ': ' + moving_image_file + ' to ' + target_image_file
             self.widgetAlignmentSelection.addItem(alignment_txt)
 
         # connect the widget to the function implementing selection of an alignment/image pair
@@ -548,7 +550,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # sort out start and end coordinates to draw rectangle
         # find differences in x and y between current and start positions
-        # scale the maxmimum difference to the same absolute value as the minimum difference to make a square
+        # scale the maximum difference to the same absolute value as the minimum difference to make a square
         # TODO feel there is a probably more elegant way to do this calculation???
         x_diff = x_current - x_start
         y_diff = y_current - y_start
@@ -655,14 +657,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # first drop duplicates
         # check why this happens!!!
         self.alignments = pd.read_csv(registration_files_csv)
+
+        # easier to work with None than nan for these purposes
+        self.alignments = self.alignments.replace(np.nan, None)
         self.alignments = self.alignments.drop_duplicates()
-        self.alignments = self.alignments.reindex(
-            columns=['target image directory', 'moving image directory', 'target image file', 'moving image file',
-                     'target image points', 'moving image points'])
-        self.alignments[['target image points', 'moving image points']] = self.alignments[
-            ['target image points', 'moving image points']].astype('object')
-        self.alignments[['target image points', 'moving image points']] = self.alignments[
-            ['target image points', 'moving image points']] = None
+
+        # add columns for points
+        self.alignments['target image points'] = None
+        self.alignments['moving image points'] = None
+
+        # set trackers for progress through alignments
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
 
