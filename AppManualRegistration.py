@@ -201,13 +201,14 @@ class QResizingPixmapLabel(QLabel):
 class MainWindow(QtWidgets.QMainWindow):
 
 
-    def __init__(self, registration_dir, upload_name, registration_files_csv, resample_images=True, resampled_image_directory=None, create_masks=False, mask_directory=None):
+    def __init__(self, registration_files_csv, upload_name, session_registration_dir, resampled_image_directory=None, mask_directory=None):
 
         """
         Initialize the main window of the application.
 
         Args:
-            registration_dir (str): string representing root directory of outputs to write registration details to
+            session_registration_dir (str): string representing summary of registration details for the session
+                                            also default individual registration files, resampled images, resampled image masks (if any)
             upload_name (str): string representing name of the upload to be registered, forming stem of files containing registration details
             resample_images (bool, optional): flag to indicate whether to resample images. Defaults to True.
             resampled_image_directory (str, optional): string representing directory to write resampled images to. Defaults to None.
@@ -217,7 +218,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
 
         # store paths to required and optional output directories, and flags for optional ones.
-        self._set_paths(registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory)
+        self._set_paths(session_registration_dir, upload_name, resampled_image_directory, mask_directory)
 
         # read in any list of registration details to be done from .csv file
         self._set_alignments(registration_files_csv)
@@ -309,33 +310,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return x_image, y_image
 
-    def _set_paths(self, registration_dir, upload_name, resample_images, resampled_image_directory, create_masks, mask_directory):
+    def _set_paths(self, session_registration_dir, upload_name, resampled_image_directory, mask_directory):
 
         """
         Takes the path arguments together with flags for whether the extra outputs should be generated
         store so they can be accessed when needed later
 
         Args:
-            registration_dir (str): string representing root directory of outputs to write registration details to
+            registration_dir (str): string representing directory to write registration summary files to
+                                    also default location for individual registration files, resampled images, and resampled masks
             upload_name (str): filename stem to use for file containing control point coordinates
-            resample_images (bool): flag indicating whether to resample moving images to space of target images
             resampled_image_directory (str): path of directory to write resampled images to if resample_images = True
-            create_masks (bool): flag indicating whether to generate binary masks showing the area covered by the moving image in the target space
             mask_directory (str): path of directory to write binary masks to if create_masks = True
 
         """
 
         # store details of where we will put output files
-        self.base_dir = registration_dir
+        self.session_registration_dir = session_registration_dir
         self.upload_name = upload_name
 
-        # store details of whether we want to resample images and if so where to save them to
-        self.resample_images = resample_images
+        # store details of where (if anywhere) we will write resampled images and masks if not specificed in the csv listing
         self.resampled_image_directory = resampled_image_directory
-
-        # similar for whether we want to create masks and if so where to save them
-        self.create_masks = create_masks
-        self.mask_directory = mask_directory
+        self.resampled_mask_directory = mask_directory
 
     def _create_alignment_selection_widget(self):
         """
@@ -679,7 +675,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
 
         # check if output pickle file exists
-        pickle_filepath = os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.pkl')
+        pickle_filepath = os.path.join(self.session_registration_dir, self.upload_name + '_manual_registration_points.pkl')
         if os.path.exists(pickle_filepath):
 
             # load saved points
@@ -978,27 +974,32 @@ class MainWindow(QtWidgets.QMainWindow):
         # initialize lists of extra outputs: transformation matrix text files
         transformation_matrix_filenames = []
 
-        # create output directories if they do not exist
-        if not os.path.exists(self.base_dir):
-            os.makedirs(self.base_dir)
-        if self.resample_images and not self.resampled_image_directory is None and not os.path.exists(self.resampled_image_directory):
-            os.makedirs(self.resampled_image_directory)
-        if self.create_masks and not self.mask_directory is None and not os.path.exists(self.mask_directory):
-            os.makedirs(self.mask_directory)
+        # create output directory if it does not exist
+        if not os.path.exists(self.session_registration_dir):
+            os.makedirs(self.session_registration_dir)
 
         # iterate through alignments generating a transformation matrix txt file and a sitk transformation object for each one
         for row in self.alignments.iterrows() :
 
             # only proceed if points have been saved for this alignment
-            target_points = row[1][4]
+            target_points = row[1]['target image points']
 
             if not target_points == None :
+
+                # get directory to save transformation matrix txt file
+                # first check if registration dir is specified in the csv file
+                # then check command line arg
+                # then default to same directory as moving image
+                if row[1]['registration_dir']:
+                    registration_dir = row[1]['registration_dir']
+                else :
+                    registration_dir = self.session_registration_dir
 
                 # extract target and moving points
                 # no longer need to save scale factors as image display sizes vary anyway.
                 # points are saved in original image pixel space
-                moving_image_filename = row[1][3]
-                moving_points = row[1][5]
+                moving_image_filename = row[1]['moving image file']
+                moving_points = row[1]['moving image points']
 
                 # convert points to numpy arrays, allowing for scale
                 target_points = np.array(target_points)
@@ -1009,17 +1010,25 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 # save homogenous transformation matrix, append paths to lists
                 moving_image_stem = Path(moving_image_filename).stem
-                transformation_matrix_filename = os.path.join(self.base_dir, f"{moving_image_stem}_transformation_matrix.txt")
+                transformation_matrix_filename = os.path.join(registration_dir, f"{moving_image_stem}_transformation_matrix.txt")
                 np.savetxt(transformation_matrix_filename, transformation_matrix)
                 transformation_matrix_filenames.append(transformation_matrix_filename)
 
-                # if option is selected, apply transformation to moving image and save
-                if self.resample_images :
+                # if resample_points is set for this row in the csv file, then resample images
+                if row[1]['resample_image']:
 
                     # get directories and target image filename
-                    target_image_dir = row[1][0]
-                    moving_image_dir = row[1][1]
-                    target_image_filename = row[1][2]
+                    target_image_dir = row[1]['target image directory']
+                    moving_image_dir = row[1]['moving image directory']
+                    target_image_filename = row[1]['target image file']
+
+                    # check for resampled image directory in csv file, then command line arg, then default to same directory as moving image
+                    if row[1]['resampled_image_dir']:
+                        resampled_image_directory = row[1]['resampled_image_dir']
+                    elif not self.resampled_image_directory is None:
+                        resampled_image_directory = self.resampled_image_directory
+                    else :
+                        resampled_image_directory = moving_image_dir
 
                     # read in target and moving images
                     moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
@@ -1036,22 +1045,28 @@ class MainWindow(QtWidgets.QMainWindow):
                     resampled_img = cv2.cvtColor(resampled_img, cv2.COLOR_GRAY2RGB)
 
                     # save registered image
-                    # if no directory is given save in same directory as moving image
-                    # otherwise save in specified directory
-                    registered_image_filename = f"{moving_image_stem}_registered_manual.tif"
-                    if self.resampled_image_directory is None :
-                        registered_image_filepath = join(moving_image_dir, registered_image_filename)
-                    else :
-                        registered_image_filepath = join(self.resampled_image_directory, registered_image_filename)
-                    cv2.imwrite(registered_image_filepath, resampled_img)
+                    # create output directory if it does not exist
+                    if not os.path.exists(resampled_image_directory):
+                        os.makedirs(resampled_image_directory)
+                    resampled_image_filename = f"{moving_image_stem}_registered_manual.tif"
+                    resampled_image_filepath = join(resampled_image_directory, resampled_image_filename)
+                    cv2.imwrite(resampled_image_filepath, resampled_img)
 
-                # if option is selected, create mask for resampled image and save
-                if self.create_masks:
+                # if resample_points is set for this row in the csv file, then resample images
+                if row[1]['create_mask']:
 
                     # get directories and target image filename
-                    target_image_dir = row[1][0]
-                    moving_image_dir = row[1][1]
-                    target_image_filename = row[1][2]
+                    target_image_dir = row[1]['target image directory']
+                    moving_image_dir = row[1]['moving image directory']
+                    target_image_filename = row[1]['target image file']
+
+                    # check for resampled image directory in csv file, then command line arg, then default to same directory as moving image
+                    if row[1]['resampled_mask_dir']:
+                        resampled_mask_dir= row[1]['resampled_mask_dir']
+                    elif not self.resampled_image_directory is None:
+                        resampled_mask_dir = self.resampled_mask_directory
+                    else:
+                        resampled_mask_dir = moving_image_dir
 
                     # read in target and moving images
                     moving_img, moving_img_read = standard_image_read(join(moving_image_dir, moving_image_filename))
@@ -1069,14 +1084,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     resampled_mask_img = cv2.cvtColor(resampled_mask_img, cv2.COLOR_GRAY2RGB)
 
                     # save registered mask
-                    # if no directory is given save in same directory as moving image
-                    # otherwise save in specified directory
-                    registered_mask_image_filename = f"{moving_image_stem}_registered_mask_manual.tif"
-                    if self.mask_directory is None:
-                        registered_mask_image_filepath = join(moving_image_dir, registered_mask_image_filename)
-                    else:
-                        registered_mask_image_filepath = join(self.mask_directory, registered_mask_image_filename)
-                    cv2.imwrite(registered_mask_image_filepath, resampled_mask_img)
+                    # create output directory if it does not exist
+                    if not os.path.exists(resampled_mask_dir):
+                        os.makedirs(resampled_mask_dir)
+                    resampled_mask_image_filename = f"{moving_image_stem}_registered_mask_manual.tif"
+                    resampled_mask_image_filepath = join(resampled_mask_dir, resampled_mask_image_filename)
+                    cv2.imwrite(resampled_mask_image_filepath, resampled_mask_img)
 
         # filter alignments to only those with saved points
         completed_alignments = self.alignments.copy()
@@ -1086,8 +1099,8 @@ class MainWindow(QtWidgets.QMainWindow):
         completed_alignments['transformation_matrix_filenames'] = transformation_matrix_filenames
 
         # save as alignments as both .csv (for readability) and pickle (for programming convenience)
-        completed_alignments.to_csv(os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.csv'))
-        completed_alignments.to_pickle(os.path.join(self.base_dir, self.upload_name + '_manual_registration_points.pkl'))
+        completed_alignments.to_csv(os.path.join(self.session_registration_dir, self.upload_name + '_manual_registration_points.csv'))
+        completed_alignments.to_pickle(os.path.join(self.session_registration_dir, self.upload_name + '_manual_registration_points.pkl'))
 
         # disable write points button again
         self.write_points_button.setEnabled(False)
@@ -1570,24 +1583,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         print ("points removed. n alignments done: ", self.n_alignments_done)
 
-def call_app(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir, create_masks, mask_dir) :
+def call_app(manual_alignments_list, upload_name, session_registration_dir, resampled_image_dir, mask_dir) :
 
     """
     Initialize and call the PyQt application with the correct arguments.
 
     Args:
-        base_dir (str): string representing root directory of outputs to write registration details to
-        upload_name (str): string representing name of the upload to be registered, forming stem of files containing registration details
         manual_alignments_list (str): string representing path to csv file containing list of manual alignments to perform
-        resample_images (bool, optional): flag to indicate whether to resample images. Defaults to True.
-        resampled_image_directory (str, optional): string representing directory to write resampled images to. Defaults to None.
-        create_masks (bool, optional): flag to indicate whether to create binary masks of the aligned images. Defaults to False.
-        mask_directory (str, optional): string representing directory to write binary masks to. Defaults to None.
+        upload_name (str): string representing name of the upload to be registered, forming stem of files containing registration details
+        session_registration_dir (str): string representing root directory of outputs to write registration details to
+                                also second choice to write any resampled images and masks if those directories are not provided in csv file
+        resampled_image_dir (str, optional): string representing directory to write resampled images to. Defaults to None.
+        mask_dir (str, optional): string representing directory to write binary masks to. Defaults to None.
     """
 
     app = QtWidgets.QApplication(sys.argv)
 
-    window = MainWindow(base_dir, upload_name, manual_alignments_list, resample_images, resampled_image_dir, create_masks, mask_dir)
+    window = MainWindow(manual_alignments_list, upload_name, session_registration_dir, resampled_image_dir, mask_dir)
     # window.set_alignments('foo')
     window.show()  # IMPORTANT!!!!! Windows are hidden by default.
 
