@@ -320,8 +320,8 @@ class MainWindow(QtWidgets.QMainWindow):
             registration_dir (str): string representing directory to write registration summary files to
                                     also default location for individual registration files, resampled images, and resampled masks
             upload_name (str): filename stem to use for file containing control point coordinates
-            resampled_image_directory (str): path of directory to write resampled images to if resample_images = True
-            mask_directory (str): path of directory to write binary masks to if create_masks = True
+            resampled_image_directory (str): path of default directory to write resampled images to if resample_images = True
+            mask_directory (str): path of default directory to write binary masks to if create_masks = True
 
         """
 

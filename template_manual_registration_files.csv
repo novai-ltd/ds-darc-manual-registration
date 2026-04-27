@@ -1,3 +1,4 @@
-target image file,moving image file,target image directory,moving image directory
-target_image_1.tif,moving_image_1.tif,path/to/target_image_directory,path/to/moving_image_directory
-target_image_2.tif,moving_image_2.tif,path/to/target_image_directory,path/to/moving_image_directory
+target image file,moving image file,target image directory,moving image directory,registration_dir,resample_image,resampled_image_dir,create_mask,resampled_mask_dir
+DARC-P2_GBR01_006_OD_V1_20102021_1.0_0.tif,DARC-P2_GBR01_006_OD_V1_20102021_1.1_0.tif,home\manual_registration_test\target_images,home\manual_registration_test\moving_images,,TRUE,,TRUE,
+DARC-P2_GBR01_011_OD_V1_20102021_1.0_0.tif,DARC-P2_GBR01_011_OD_V1_20102021_1.1_0.tif,home\manual_registration_test\target_images,home\manual_registration_test\moving_images,home\manual_registration_test\registration_data,TRUE,home\manual_registration_test\resampled_images,TRUE,home\manual_registration_test\resampled_masks
+DARC-P2_GBR01_012_OD_V1_20102021_1.0_0.tif,DARC-P2_GBR01_012_OD_V1_20102021_1.2_0.tif,home\manual_registration_test\target_images,home\manual_registration_test\moving_images,,,,,

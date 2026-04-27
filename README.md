@@ -31,9 +31,22 @@ no required folder structure for the images. The parameters are as follows:
 #### Required parameters
 Three parameters are required to be set:
 
-* registration_dir. This is a string representing the  path to a directory where the required outputs (transformation files and list of image points) will be saved to
+* registration_files_list. This is the path of a csv file listing the paths of the moving and target image files, and other optional information.
 * upload_name. This is a string prepended to the filename of the list of points, to identify this experiment or run of registrations.
-* registration_files_list. This is the path of a csv file listing the paths of the moving and target image files. This must be structured as follows
+* session_registration_dir. This is the path of a directory where the registration points for all images are saved to file, both as .csv and pickle.
+
+#### Optional parameters
+Two optional parameters allow the user to set default directories for resampled images (if any) and resample masks (if any). These can
+be overridden on a per-registration basis by including the relevant columns in the registration files list csv, as described below.
+
+* --resampled_image_dir. Save resampled images to this directory, for registrations where the files list specifies that the moving image should be resampled but does not specify a directory to save the resampled image to.
+If the directory is set in neither place, resampled images will be saved to the same directory as the moving image they were created from.
+* --resampled_mask_dir. Save resampled_masks to this directory, for registrations where the files list specifies that a mask should be created but does not specify a directory to save the mask to. 
+  If the directory is set in neither place, masks will be saved to the same directory as the moving image they were created from.
+
+an example registration_files_list csv file is provided in the repo, which can be copied and edited to create a files list for your set of registrations.
+
+
 
 #### Registration files list
 This must be a csv file with the following column names: "target image file", "moving image file", "target image directory", "moving image directory".
@@ -44,32 +57,36 @@ however in practice it may be better to put all of the images in a single direct
 images. A template file is provided in the repo which can be copied to form a file for your set of registrations. In many cases multiple moving images may be 
 registered to the same target image, in which case the "target image file" will be repeated across lines.
 
-#### Optional parameters
-There are four optional parameters for extra non default outputs:
+#### Optional columns in files list
+More control over the extra outputs of the app can be achieved by adding extra columns to the registration files list csv.
+In general, the optional columns are applied on a per-registration basis: they can be left out entirely (in which case the app will use default settings for all registrations), 
+or they can be included and filled in for some registrations but not others (in which case the app will use the specified settings for those registrations, and default settings for the rest
 
-* resample_images. By default, the only registration outputs are the saved points and transforms, and the actual image resampling is done after marking all points
-with the register_from_points_listing scripts. If this argument called, the moving images will be resampled by the app and the resampled images will be saved. If
-* resampled_image_dir. If resample_images is set, use this argument to specify a directory to write the resampled images to. If left unset, the resampled images will be saved to 
-the same directory as the moving image they were created from. If resample_images is not set, this argument is ignored. The resampled image directory will be created if it does not already exist.
-* create_masks. In some situations it may be useful to produce a binary mask, showing where in the space of the target image the moving image maps to
-  (for example, if we want to calculate some statistic only where the registered moving image overlays the target image). If this
-  option is set, these masks will be created and saved by the app.
-* resampled_mask_dir. This is the directory to save masks to if create_masks is True. If left unset, masks
-will be saved back in the same directory as the moving image they were created from. If create_masks is not set, this argument is ignored. The resampled mask directory will be created if it does not already exist.
-
+The following optional columns can be added:
+* registration_dir. This column can contain paths to directories to save the transformation matrix for each registration. If this column is not included, the matrices will be
+saved to the session_registration_dir. If this column is included but some rows are left blank, the matrices for those rows will be saved to the session_registration_dir.
+* resample_image. This column can be set to TRUE or FALSE to specify whether the moving image for each registration should be resampled by the app. If this column is not included, the app will use the default setting for all registrations (which is not to resample). 
+  If this column is included but some rows are left blank, the app will use the default setting for those rows (which is not to resample). 
+* resampled_image_dir. This column can contain paths to directories to save the resampled images for each registration. This is ignored if resample_image is not set to TRUE.
+  If not included or for rows where it is left blank, the resampled image are written to the optional registered_image_dir command line argument if that is set, or else the directory of the moving image. 
+* create_mask. This column can be set to TRUE or FALSE to specify whether a binary mask should be created by the app for each registration. If this column is not included, the app will use the default setting for all registrations (which is not to create masks). 
+  If this column is included but some rows are left blank, the app will use the default setting for those rows (which is not to resample).
+* resampled_mask_dir. This column can contain paths to directories to save the resampled masks for each registration. This is ignored if create_mask is not set to TRUE.
+If not included or for rows where it is left blank, the resampled masks are written to the optional registered_mask_dir command line argument if that is set, or else the directory of the moving image.
+  
   
 ### Running the app
 To run the app in Python, simply call the RunAppManualRegistration script with the following command and arguments:
 
 ```
-python RunAppManualRegistration.py path/to/registration_dir upload_name path/to/registration_files_list 
-[--resample_images] [--resampled_image_dir path/to/resampled_image_dir] [--create_masks] [--resampled_mask_dir path/to/resampled_mask_dir]
+python RunAppManualRegistration.py path/to/registration_files_list_csv upload_name path/to/registration_directory
+[--resampled_image_dir path/to/resampled_image_dir] [--resampled_mask_dir path/to/resampled_mask_dir]
 ```
 
-For example, to run the app with resampling and mask creation enabled and to write the resampled images and masks to particular directories you could use a command like this:
+For example, to run the app and provide a default location for any resampled images and masks, the command would look like this:
 
 ```
-python RunAppManualRegistration.py /path/to/registration_dir experiment_01 /path/to/registration_files_list.csv --resample_images --resampled_image_dir /path/to/resampled_images --create_masks --resampled_mask_dir /path/to/resampled_masks
+python RunAppManualRegistration.py path/to/registration_files_list_csv experiment_01 path/to/registration_directory --resampled_image_dir path/to/resampled_image_dir --resampled_mask_dir path/to/resampled_mask_dir
 ```
 
 The same script can also be run from your IDE.
