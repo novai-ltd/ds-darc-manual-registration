@@ -1011,6 +1011,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 # save homogenous transformation matrix, append paths to lists
                 moving_image_stem = Path(moving_image_filename).stem
                 transformation_matrix_filename = os.path.join(registration_dir, f"{moving_image_stem}_transformation_matrix.txt")
+                if not os.path.exists(registration_dir):
+                    os.makedirs(registration_dir)
                 np.savetxt(transformation_matrix_filename, transformation_matrix)
                 transformation_matrix_filenames.append(transformation_matrix_filename)
 
@@ -1052,7 +1054,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     resampled_image_filepath = join(resampled_image_directory, resampled_image_filename)
                     cv2.imwrite(resampled_image_filepath, resampled_img)
 
-                # if resample_points is set for this row in the csv file, then resample images
+                # if create mask is set for this row in the csv file, then create the mask
                 if row[1]['create_mask']:
 
                     # get directories and target image filename
