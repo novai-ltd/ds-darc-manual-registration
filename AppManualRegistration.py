@@ -176,7 +176,6 @@ class QResizingPixmapLabel(QLabel):
             event (QEvent): resize event
         """
 
-        print("resize")
         if self._pixmap is not None:
 
             # calculate the new size of the image
@@ -218,7 +217,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
 
         # store paths to required and optional output directories, and flags for optional ones.
-        self._set_paths(session_registration_dir, upload_name, resampled_image_directory, mask_directory)
+        self._set_paths(registration_files_csv, session_registration_dir, upload_name, resampled_image_directory, mask_directory)
 
         # read in any list of registration details to be done from .csv file
         self._set_alignments(registration_files_csv)
@@ -310,7 +309,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return x_image, y_image
 
-    def _set_paths(self, session_registration_dir, upload_name, resampled_image_directory, mask_directory):
+    def _set_paths(self, registration_files_csv, session_registration_dir, upload_name, resampled_image_directory, mask_directory):
 
         """
         Takes the path arguments together with flags for whether the extra outputs should be generated
@@ -332,6 +331,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # store details of where (if anywhere) we will write resampled images and masks if not specificed in the csv listing
         self.resampled_image_directory = resampled_image_directory
         self.resampled_mask_directory = mask_directory
+
+        # set session directory as parents of registration_files_csv
+        self.session_dir = os.path.dirname(registration_files_csv)  
+
+
 
     def _create_alignment_selection_widget(self):
         """
@@ -658,6 +662,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.alignments = self.alignments.replace(np.nan, None)
         self.alignments = self.alignments.drop_duplicates()
 
+        # if moving image directory and target image directory columns are not in the csv, add them with default value 
+        # the registration session directory + 'moving_images' or 'target_images'
+        if not 'moving image directory' in self.alignments.columns:
+            self.alignments['moving image directory'] = os.path.join(self.session_dir, 'moving_images')
+        if not 'target image directory' in self.alignments.columns:
+            self.alignments['target image directory'] = os.path.join(self.session_dir, 'target_images')
+
+        # if the columns ARE in the csv but have missing values, fill those with the default value as above
+        self.alignments['moving image directory'] = self.alignments['moving image directory'].fillna(os.path.join(self.session_dir, 'moving_images'))
+        self.alignments['target image directory'] = self.alignments['target image directory'].fillna(os.path.join(self.session_dir, 'target_images'))
+
         # add columns for points
         self.alignments['target image points'] = None
         self.alignments['moving image points'] = None
@@ -665,6 +680,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # set trackers for progress through alignments
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
+
+
+
+
+
+
 
     def _load_saved_points(self):
 
