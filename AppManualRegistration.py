@@ -681,12 +681,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
 
-
-
-
-
-
-
     def _load_saved_points(self):
 
         """
@@ -737,6 +731,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.point_table.setRowCount(3)
         self.point_table.setColumnCount(2)
         self.point_table.setHorizontalHeaderLabels(["target image point", "moving image point"])
+        self.point_table.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.point_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
         # set up label for image selection dropdown list
         self.image_selection_label = QtWidgets.QLabel(self)
@@ -749,9 +745,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # finally add the buttons to the layout
         self.layoutPointControl = QtWidgets.QVBoxLayout()
         self.add_points_button = QtWidgets.QPushButton(self)
-        self.add_points_button.setText('add current point pair')
+        self.add_points_button.setText('add current point pair (A)')
         self.save_points_button = QtWidgets.QPushButton(self)
-        self.save_points_button.setText('save current points')
+        self.save_points_button.setText('save current points (S)')
         self.remove_points_button = QtWidgets.QPushButton(self)
         self.remove_points_button.setText('remove all points')
         self.write_points_button = QtWidgets.QPushButton(self)
@@ -767,13 +763,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # set up image zoom control buttons
         self.target_image_reset_zoom_button = QtWidgets.QPushButton(self)
-        self.target_image_reset_zoom_button.setText('reset zoom')
+        self.target_image_reset_zoom_button.setText('reset zoom (Shift+r)')
         self.moving_image_reset_zoom_button = QtWidgets.QPushButton(self)
-        self.moving_image_reset_zoom_button.setText('reset zoom')
+        self.moving_image_reset_zoom_button.setText('reset zoom (Ctrl+r)')
         self.target_image_undo_zoom_button = QtWidgets.QPushButton(self)
-        self.target_image_undo_zoom_button.setText('undo zoom')
+        self.target_image_undo_zoom_button.setText('undo zoom (Shift+b)')
         self.moving_image_undo_zoom_button = QtWidgets.QPushButton(self)
-        self.moving_image_undo_zoom_button.setText('undo zoom')
+        self.moving_image_undo_zoom_button.setText('undo zoom (Ctrl+b)')
 
         # group zoom buttons into a pair for each image
         self.layoutTargetImageZoomControl = QtWidgets.QHBoxLayout()
