@@ -47,12 +47,10 @@ If the directory is set in neither place, resampled images will be saved to the 
 an example registration_files_list csv file is provided in the repo, which can be copied and edited to create a files list for your set of registrations.
 
 
-
 #### Registration files list
-This must be a csv file with the following column names: "target image file", "moving image file", "target image directory", "moving image directory".
-Each row will represent a pair of images for registration. The "target image file" and "moving image file" cells should contain the file names of the moving image 
-to be registered, and the target image for it to be registered to respectively. The "target image directory" and "moving image directory" cells should contain the
-paths to the directories containing the target image file and moving image file respectively. This means that the image files can be in any directory or combinbation of directories;
+This must be a csv file with (at least) the following column names: "target image file", "moving image file".
+Each row will represent a pair of images for registration. The "target image file" and "moving image file" cells should contain the file names (NOT paths) of the moving image 
+to be registered, and the target image for it to be registered to respectively. The image files can be in any directory or combinbation of directories;
 however in practice it may be better to put all of the images in a single directory, or for there to be one directory for all target images and one for all moving
 images. A template file is provided in the repo which can be copied to form a file for your set of registrations. In many cases multiple moving images may be 
 registered to the same target image, in which case the "target image file" will be repeated across lines.
@@ -60,9 +58,17 @@ registered to the same target image, in which case the "target image file" will 
 #### Optional columns in files list
 More control over the extra outputs of the app can be achieved by adding extra columns to the registration files list csv.
 In general, the optional columns are applied on a per-registration basis: they can be left out entirely (in which case the app will use default settings for all registrations), 
-or they can be included and filled in for some registrations but not others (in which case the app will use the specified settings for those registrations, and default settings for the rest
+or they can be included and filled in for some registrations but not others (in which case the app will use the specified settings for those registrations, and default settings for the rest).
 
 The following optional columns can be added:
+* target image directory. This column can contain paths to the directory containing the corresponding target image files. Directories can be wherever the user wishes and
+do not all have to be the same. If this column is omitted entirely, all target images will be assumed to be in a directory called "target_images" in the session directory, where
+the session directory is the parent directory of the registration files list and is inferred from the compulsory registration_files_list argument. If this column is included, any cell
+left empty will also be filled in with this same directory.
+* moving image directory. This column can contain paths to the directory containing the corresponding moving image files. Directories can be wherever the user wishes and
+do not all have to be the same. If this column is omitted entirely, all moving images will be assumed to be in a directory called "moving_images" in the session directory, where
+the session directory is the parent directory of the registration files list and is inferred from the compulsory registration_files_list argument. If this column is included, any cell
+left empty will also be filled in with this same directory.
 * registration_dir. This column can contain paths to directories to save the transformation matrix for each registration. If this column is not included, the matrices will be
 saved to the session_registration_dir. If this column is included but some rows are left blank, the matrices for those rows will be saved to the session_registration_dir.
 * resample_image. This column can be set to TRUE or FALSE to specify whether the moving image for each registration should be resampled by the app. If this column is not included, the app will use the default setting for all registrations (which is not to resample). 
