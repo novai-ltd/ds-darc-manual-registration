@@ -1,0 +1,9 @@
+[project]
+name = "darc-manual-registration"
+version = "0.1.0"
+description = "Tool for manual affine registration of retinal images"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    {name = "Jonathan Young", email = "jonathan.young@novai.co.uk"},
+]
