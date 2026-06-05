@@ -4,7 +4,7 @@ import os
 import pandas as pd
 from pathlib import Path
 from os.path import join
-from AppManualRegistration import standard_image_read
+from manual_registration_app.AppManualRegistration import standard_image_read
 import argparse
 
 def register_images_from_points_listing(points_listing_filepath, transformation_dir, resampled_image_dir=None, create_masks=None, mask_dir=None):

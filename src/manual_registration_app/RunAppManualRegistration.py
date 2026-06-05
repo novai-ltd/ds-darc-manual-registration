@@ -1,6 +1,6 @@
 import argparse
 
-from AppManualRegistration import call_app
+from manual_registration_app.AppManualRegistration import call_app
 
 def main():
 
