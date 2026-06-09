@@ -13,7 +13,6 @@ dependencies = [
     "pandas==1.5.3",
     "pydicom>2.0.0",
     "PyQt5>5.0.0",
-    "PyQt5-Qt5>5.0.0",
     "PyQt5_sip==12.17.0",
     "SimpleITK==2.3.1",
     "tifffile==2024.7.21"
