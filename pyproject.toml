@@ -7,3 +7,14 @@ requires-python = ">=3.9"
 authors = [
     {name = "Jonathan Young", email = "jonathan.young@novai.co.uk"},
 ]
+dependencies = [
+    "python>=3.9",
+    "numpy==1.26.4",
+    "opencv-python==4.10.0.84",
+    "pandas==1.5.3",
+    "PyQt5==5.15.11",
+    "PyQt5-Qt5==5.15.2",
+    "PyQt5_sip==12.17.0",
+    "SimpleITK==2.3.1",
+    "tifffile==2024.7.21"
+]
