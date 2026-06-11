@@ -8,7 +8,7 @@ The app facilitates this by displaying the images in a pair side-by-side, allowi
 and calculate a transform and resample the moving image all in a single place.
 ## Installation
 
-### Install Python code
+### Install Python code from repo
 
 The labeller app is written in Python and uses the PyQt5 library for the GUI. To obtain the code, clone the Git repository at https://github.com/novai-ltd/ds-darc-manual-registration.git.
 After cloning, open the Anaconda command line tool and cd to the ds-darc-manual-registration directory. Create a conda environment for the app, activate the environment
@@ -18,6 +18,23 @@ conda create -n manual_registration_app python=3.10
 conda activate manual_registration_app
 pip install -r requirements.txt
 ```
+
+### Install as package
+
+As well as a standalone tool, this is intended to be used as an installable package (like numpy, pandas et cetera) so its functionality can be made available across other projects. To do this, ensure the python version you want to install into is at least 3.9+ and then install with pip:
+```
+pip install git+https://github.com/novai-ltd/ds-darc-manual-registration.git
+```
+You can then access tool functions and run the app via imports in python scripts, e.g.:
+
+```
+from manual_registration_tool.utils.affine_matrix_to_sitk import homogeneous_to_sitk_affine
+from manual_registration_tool.utils.transform_points import transform_points_in_file
+from manual_registration_tool.app.AppManualRegistration import call_app
+call_app("/path/to/registration/file/list.csv", "test", "/path/to/registration/dir", None, None)
+```
+
+### Compiled app
 
 Unlike other apps, there are currently no compiled executable versions of the manual registration tool; however they may be made available in future. 
 
@@ -96,6 +113,8 @@ python RunAppManualRegistration.py path/to/registration_files_list_csv experimen
 ```
 
 The same script can also be run from your IDE.
+
+Alternatively, if the tool has been installed as a package import the call_app function as described earlier.
 
 ### Using the app
 
