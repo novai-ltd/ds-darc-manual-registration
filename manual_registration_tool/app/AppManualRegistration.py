@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from os.path import join
+from os.path import join, split
 import functools
 import os
 import sys
@@ -880,18 +880,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_alignment = alignment_str
 
         # look up current alignment in alignments table
-        # break up alignment string to get moving and target image file names according to how alignment strings are formatted
-        prefixed_current_moving_file_name, current_target_file_name = alignment_str.split(' to ')
-        current_moving_file_name = prefixed_current_moving_file_name.split(': ', 1)[1]
-        self.current_moving_image_file = current_moving_file_name
-        self.current_target_image_file = current_target_file_name
+        # break up alignment string to get moving and target image file paths according to how alignment strings are formatted
+        prefixed_current_moving_filepath, current_target_filepath = alignment_str.split(' to ')
+        current_moving_filepath = prefixed_current_moving_filepath.split(': ', 1)[1]
+        self.current_moving_image_dir, self.current_moving_image_file = split(current_moving_filepath)
+        self.current_target_image_dir, self.current_target_image_file = split(current_target_filepath)
 
         self.current_alignment_row = self.alignments.loc[(self.alignments['target image file'] == self.current_target_image_file) & (
-            self.alignments['moving image file'] == self.current_moving_image_file)].head(1)
+            self.alignments['moving image file'] == self.current_moving_image_file) & (
+            self.alignments['target image directory'] == self.current_target_image_dir) & (
+            self.alignments['moving image directory'] == self.current_moving_image_dir)].head(1)
 
         self.current_alignment_row_index = self.current_alignment_row.index[0]
-        self.current_target_image_dir = self.current_alignment_row['target image directory'].values[0]
-        self.current_moving_image_dir = self.current_alignment_row['moving image directory'].values[0]
+        #self.current_target_image_dir = self.current_alignment_row['target image directory'].values[0]
+        #self.current_moving_image_dir = self.current_alignment_row['moving image directory'].values[0]
 
         # read and store image arrays
         current_moving_img_array, self.current_moving_image_read = standard_image_read(join(self.current_moving_image_dir, self.current_moving_image_file))
