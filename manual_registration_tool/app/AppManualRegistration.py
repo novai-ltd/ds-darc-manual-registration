@@ -349,11 +349,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # loop through rows of the alignments table
         for i, row in enumerate(self.alignments.iterrows()):
 
-            # for each row, join the name of the moving image to the name of the target image to create a dropdown menu item
+            # for each row, join the path of the moving image to the path of the target image to create a dropdown menu item
             # then add the item to the widget
+            moving_image_dir = row[1]['moving image directory']
+            target_image_dir = row[1]['target image directory']
             moving_image_file = row[1]['moving image file']
             target_image_file = row[1]['target image file']
-            alignment_txt = str(i+1) + ': ' + moving_image_file + ' to ' + target_image_file
+            alignment_txt = str(i+1) + ': ' + os.path.join(moving_image_dir, moving_image_file) + ' to ' + os.path.join(target_image_dir, target_image_file)
             self.widgetAlignmentSelection.addItem(alignment_txt)
 
         # connect the widget to the function implementing selection of an alignment/image pair
