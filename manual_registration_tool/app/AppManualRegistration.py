@@ -455,31 +455,50 @@ class MainWindow(QtWidgets.QMainWindow):
             # then call the draw function with these limits to redraw the image
             square_selection_coordinates = self._calculate_square_coordinates(is_moving_image, x_image_display, y_image_display)
 
-            # protect against too much zooming in
-            # if size of zoomed image is less than minimum, alert user with popup and do not update image except to remove selection box
-            if is_moving_image:
-                scale_factor = self.moving_image_scale_factor
-            else:
-                scale_factor = self.target_image_scale_factor
-            zoomed_image_size = (square_selection_coordinates["x_max"] - square_selection_coordinates["x_min"]) * scale_factor
-            if zoomed_image_size < self.minimum_zoomed_image_size:
+            # protect against starting outside the image boundaries by checking if any coordinates are negative
+            # alert user with popup and do not update image except to remove selection box
+            if (square_selection_coordinates["x_min"] < 0 or
+                square_selection_coordinates["y_min"] < 0 or
+                square_selection_coordinates["x_max"] < 0 or
+                square_selection_coordinates["y_max"] < 0):
+
                 msg = QtWidgets.QMessageBox()
                 msg.setIcon(QtWidgets.QMessageBox.Warning)
-                msg.setText("Zoom limit reached")
-                msg.setInformativeText(f"Cannot zoom in to selected area. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.")
-                msg.setWindowTitle("Zoom limit")
+                msg.setText("Zoom area selection error")
+                msg.setInformativeText(f"Cannot start selecting zoom area outside of image.")
+                msg.setWindowTitle("Zoom area selection error")
                 msg.exec_()
                 square_selection_coordinates = None
                 self._draw_image(is_moving_image, square_selection_coordinates)
 
-            # if zoomed image size is ok, update image scale parameters, redraw image and enable undo zoom button
+            # otherwise OK
             else:
-                self._update_image_scale_parameters(is_moving_image, square_selection_coordinates)
-                self._draw_image(is_moving_image)
+
+                # protect against too much zooming in
+                # if size of zoomed image is less than minimum, 
                 if is_moving_image:
-                    self.moving_image_undo_zoom_button.setEnabled(True)
+                    scale_factor = self.moving_image_scale_factor
                 else:
-                    self.target_image_undo_zoom_button.setEnabled(True)
+                    scale_factor = self.target_image_scale_factor
+                zoomed_image_size = (square_selection_coordinates["x_max"] - square_selection_coordinates["x_min"]) * scale_factor
+                if zoomed_image_size < self.minimum_zoomed_image_size:
+                    msg = QtWidgets.QMessageBox()
+                    msg.setIcon(QtWidgets.QMessageBox.Warning)
+                    msg.setText("Zoom limit reached")
+                    msg.setInformativeText(f"Cannot zoom in to selected area. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.")
+                    msg.setWindowTitle("Zoom limit")
+                    msg.exec_()
+                    square_selection_coordinates = None
+                    self._draw_image(is_moving_image, square_selection_coordinates)
+
+                # if zoomed image size is ok, update image scale parameters, redraw image and enable undo zoom button
+                else:
+                    self._update_image_scale_parameters(is_moving_image, square_selection_coordinates)
+                    self._draw_image(is_moving_image)
+                    if is_moving_image:
+                        self.moving_image_undo_zoom_button.setEnabled(True)
+                    else:
+                        self.target_image_undo_zoom_button.setEnabled(True)
 
     def _process_mouse_move_on_image(self, is_moving_image, event):
 
