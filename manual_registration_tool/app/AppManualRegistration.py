@@ -240,7 +240,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._load_saved_points()
 
         # select first alignment by default
-        self._select_alignment(self.widgetAlignmentSelection.itemText(0))
+        self._select_alignment(0)
 
         # Create a keyboard shortcut for undoing zoom on the moving image with Ctrl+B and on the target image with Shift+B
         # don't call the _undo_zoom_shortcut function directly, as need to check history stacks to see if undo is possible
@@ -359,7 +359,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.widgetAlignmentSelection.addItem(alignment_txt)
 
         # connect the widget to the function implementing selection of an alignment/image pair
-        self.widgetAlignmentSelection.activated[str].connect(self._select_alignment)
+        #self.widgetAlignmentSelection.activated[str].connect(self._select_alignment)
+        self.widgetAlignmentSelection.activated[int].connect(self._select_alignment)
 
     def _set_up_image_display(self):
 
@@ -702,6 +703,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.n_alignments = len(self.alignments)
         self.n_alignments_done = 0
 
+        # reindex to make sure the index is continuous and starts from 0
+        self.alignments = self.alignments.reset_index(drop=True)
+
     def _load_saved_points(self):
 
         """
@@ -857,28 +861,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # only go ahead if we are allowed to change image pair
         if self.widgetAlignmentSelection.isEnabled():
-            current_alignment_ind = int(self.current_alignment.split(':')[0]) - 1
+
             # if we want to move to next, check we are not on last alignment
             if next_alignment:
-                if current_alignment_ind < self.n_alignments - 1:
-                    # generate new alignment string and move to next alignment with select_alignment
-                    # update widgetAlignmentSelection to match
-                    new_alignment_txt = str(current_alignment_ind+2)+': '+self.alignments.loc[current_alignment_ind + 1, 'moving image file'] + ' to ' + self.alignments.loc[current_alignment_ind + 1, 'target image file']
-                    self._select_alignment(new_alignment_txt)
-                    self.widgetAlignmentSelection.setCurrentIndex(current_alignment_ind + 1)
+                if self.current_alignment_ind < self.n_alignments - 1:
+
+                    # move to the next alignment and remember to update the widget selection index too
+                    self._select_alignment(self.current_alignment_ind + 1)
+                    self.widgetAlignmentSelection.setCurrentIndex(self.current_alignment_ind + 1)
 
             # if not, check we are not on first alignment before moving back to previous
             else:
-                if current_alignment_ind > 0:
-                    # generate new alignment string and move to previous alignment with select_alignment
-                    # update widgetAlignmentSelection to match
-                    new_alignment_txt = str(current_alignment_ind)+': '+self.alignments.loc[current_alignment_ind - 1, 'moving image file'] + ' to ' + self.alignments.loc[current_alignment_ind - 1, 'target image file']
-                    self._select_alignment(new_alignment_txt)
-                    self.widgetAlignmentSelection.setCurrentIndex(current_alignment_ind - 1)
+                if self.current_alignment_ind > 0:
+
+                    # move to the previous alignment and remember to update the widget selection index too
+                    self._select_alignment(self.current_alignment_ind - 1)
+                    self.widgetAlignmentSelection.setCurrentIndex(self.current_alignment_ind - 1)
 
 
     # display eyes for selected alignment
-    def _select_alignment(self, alignment_str):
+    def _select_alignment(self, alignment_ind):
 
         """
         Load the selected alignment/pair of eyes
@@ -887,7 +889,7 @@ class MainWindow(QtWidgets.QMainWindow):
         Save image sizes and scale factors for later use
 
         Args:
-            alignment_str: string with the format 'target_image_file_to_moving_image_file' that identifies the alignment to be loaded
+            alignment_ind: integer index of the alignment to be loaded
         """
 
         # empty table
@@ -896,23 +898,15 @@ class MainWindow(QtWidgets.QMainWindow):
             ["target image point", "moving image point"])
 
         # set current alignment
-        self.current_alignment = alignment_str
+        self.current_alignment_ind = alignment_ind
 
-        # look up current alignment in alignments table
-        # break up alignment string to get moving and target image file paths according to how alignment strings are formatted
-        prefixed_current_moving_filepath, current_target_filepath = alignment_str.split(' to ')
-        current_moving_filepath = prefixed_current_moving_filepath.split(': ', 1)[1]
-        self.current_moving_image_dir, self.current_moving_image_file = split(current_moving_filepath)
-        self.current_target_image_dir, self.current_target_image_file = split(current_target_filepath)
-
-        self.current_alignment_row = self.alignments.loc[(self.alignments['target image file'] == self.current_target_image_file) & (
-            self.alignments['moving image file'] == self.current_moving_image_file) & (
-            self.alignments['target image directory'] == self.current_target_image_dir) & (
-            self.alignments['moving image directory'] == self.current_moving_image_dir)].head(1)
-
-        self.current_alignment_row_index = self.current_alignment_row.index[0]
-        #self.current_target_image_dir = self.current_alignment_row['target image directory'].values[0]
-        #self.current_moving_image_dir = self.current_alignment_row['moving image directory'].values[0]
+        # extract current alignment row from alignments table
+        # use it to set the current moving and target image file paths
+        self.current_alignment_row = self.alignments.loc[self.current_alignment_ind]
+        self.current_moving_image_file = self.current_alignment_row['moving image file']
+        self.current_target_image_file = self.current_alignment_row['target image file']
+        self.current_moving_image_dir = self.current_alignment_row['moving image directory']
+        self.current_target_image_dir = self.current_alignment_row['target image directory']
 
         # read and store image arrays
         current_moving_img_array, self.current_moving_image_read = standard_image_read(join(self.current_moving_image_dir, self.current_moving_image_file))
@@ -962,7 +956,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # draw points if necessary
         # and repopulate table
-        existing_target_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
+        existing_target_image_points = self.current_alignment_row['target image points']
         if not existing_target_image_points == None :
 
             self._draw_image(True)
@@ -974,7 +968,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.remove_points_button.setDisabled(False)
 
             # add to points table
-            existing_moving_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+            existing_moving_image_points = self.current_alignment_row['moving image points']
             for i, moving_image_point in enumerate(existing_moving_image_points):
 
                 target_image_point = existing_target_image_points[i]
@@ -1360,7 +1354,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # get points as list of tuples
             # either from existing points in alignment DF or from stashed points/current point if not
-            saved_image_points = self.alignments.at[self.current_alignment_row_index, 'moving image points']
+            saved_image_points = self.alignments.at[self.current_alignment_ind, 'moving image points']
             if saved_image_points is None:
                 existing_image_points = self.stashed_moving_image_points
                 current_image_point = self.current_moving_image_point
@@ -1383,7 +1377,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # get points as list of tuples
             # either from existing points in alignment DF or from stashed points/current point if not
-            saved_image_points = self.alignments.at[self.current_alignment_row_index, 'target image points']
+            saved_image_points = self.alignments.at[self.current_alignment_ind, 'target image points']
             if saved_image_points is None:
                 existing_image_points = self.stashed_target_image_points
                 current_image_point = self.current_target_image_point
@@ -1562,8 +1556,8 @@ class MainWindow(QtWidgets.QMainWindow):
         """
 
         # set stashed points to current alignment row in alignments DataFrame
-        self.alignments.at[self.current_alignment_row_index, 'target image points'] = self.stashed_target_image_points
-        self.alignments.at[self.current_alignment_row_index, 'moving image points'] = self.stashed_moving_image_points
+        self.alignments.at[self.current_alignment_ind, 'target image points'] = self.stashed_target_image_points
+        self.alignments.at[self.current_alignment_ind, 'moving image points'] = self.stashed_moving_image_points
 
         # turn off save button
         self.save_points_button.setDisabled(True)
@@ -1593,12 +1587,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.point_table.setHorizontalHeaderLabels(["target image point", "moving image point"])
 
         # if points were saved, decrement counter of points aligments done
-        if not self.alignments.at[self.current_alignment_row_index, 'target image points'] is None:
+        if not self.alignments.at[self.current_alignment_ind, 'target image points'] is None:
             self.n_alignments_done = self.n_alignments_done - 1
 
         # remove points from self.alignment
-        self.alignments.at[self.current_alignment_row_index, 'target image points'] = None
-        self.alignments.at[self.current_alignment_row_index, 'moving image points'] = None
+        self.alignments.at[self.current_alignment_ind, 'target image points'] = None
+        self.alignments.at[self.current_alignment_ind, 'moving image points'] = None
 
         # remove points from images and redraw
         self.stashed_moving_image_points = None
