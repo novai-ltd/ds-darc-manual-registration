@@ -347,6 +347,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # create the widget to hold the dropdown list
         self.widgetAlignmentSelection = QtWidgets.QComboBox(self)
+        self.widgetAlignmentSelection.setFocusPolicy(QtCore.Qt.NoFocus)
 
         # loop through rows of the alignments table
         for i, row in enumerate(self.alignments.iterrows()):
