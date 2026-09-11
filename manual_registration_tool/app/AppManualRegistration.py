@@ -434,6 +434,31 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.target_image_start_x = x_image_display
                 self.target_image_start_y = y_image_display
 
+    def _handle_zoom_error(self, is_moving_image, message_text, message_informative_text, message_window_title, square_selection_coordinates):
+
+        """
+        User can generate errors in two ways while zooming: selecting too small an area or starting the selection outside the image boundaries.
+        Code to handle these errors is virtually identical, involving displaying a message box to the user with the appropriate error message and then
+        removing the selection coordinates and redrawing the image.
+
+        Args:
+            is_moving_image (bool): flag indicating whether the image being zoomed is the moving image (True) or target image (False)
+            message_text (str): the main text of the error message
+            message_informative_text (str): additional informative text for the error message
+            message_window_title (str): the title of the error message window
+            square_selection_coordinates (tuple): the coordinates of the square selection that caused the error
+        """
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Warning)
+        msg.setText(message_text)
+        msg.setInformativeText(message_informative_text)
+        msg.setWindowTitle(message_window_title)
+        msg.exec_()
+        square_selection_coordinates = None
+        self._draw_image(is_moving_image, square_selection_coordinates)
+        
+        
+
     def _mouseReleaseFilter(self, is_moving_image, event):
         if event.button() == Qt.RightButton:
 
@@ -463,14 +488,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 square_selection_coordinates["x_max"] < 0 or
                 square_selection_coordinates["y_max"] < 0):
 
-                msg = QtWidgets.QMessageBox()
-                msg.setIcon(QtWidgets.QMessageBox.Warning)
-                msg.setText("Zoom area selection error")
-                msg.setInformativeText(f"Cannot start selecting zoom area outside of image.")
-                msg.setWindowTitle("Zoom area selection error")
-                msg.exec_()
-                square_selection_coordinates = None
-                self._draw_image(is_moving_image, square_selection_coordinates)
+                self._handle_zoom_error(
+                    is_moving_image,
+                    "Zoom area selection error",
+                    "Cannot start selecting zoom area outside of image.",
+                    "Zoom area selection error",
+                    square_selection_coordinates
+                )
+
 
             # otherwise OK
             else:
@@ -483,14 +508,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     scale_factor = self.target_image_scale_factor
                 zoomed_image_size = (square_selection_coordinates["x_max"] - square_selection_coordinates["x_min"]) * scale_factor
                 if zoomed_image_size < self.minimum_zoomed_image_size:
-                    msg = QtWidgets.QMessageBox()
-                    msg.setIcon(QtWidgets.QMessageBox.Warning)
-                    msg.setText("Zoom limit reached")
-                    msg.setInformativeText(f"Cannot zoom in to selected area. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.")
-                    msg.setWindowTitle("Zoom limit")
-                    msg.exec_()
-                    square_selection_coordinates = None
-                    self._draw_image(is_moving_image, square_selection_coordinates)
+                    self._handle_zoom_error(
+                        is_moving_image,
+                        "Zoom limit reached",
+                        f"Cannot zoom in to selected area. Minimum zoomed image size is {self.minimum_zoomed_image_size} pixels.",
+                        "Zoom limit",
+                        square_selection_coordinates
+                    )
 
                 # if zoomed image size is ok, update image scale parameters, redraw image and enable undo zoom button
                 else:
