@@ -283,6 +283,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.shortcut = QShortcut(shortcut, self)
         self.shortcut.activated.connect(functools.partial(self._move_alignment_shortcut, False))
 
+    
 
     def _widget_to_image_coordinates(self, x_widget, y_widget):
 
@@ -338,6 +339,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _create_alignment_selection_widget(self):
+
         """
         The user selects which alignment/image pair to do by selecting from a dropdown list.
         Here we create a widget for that list, and then populate that list with image names pulled from the alignments table
@@ -349,17 +351,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # loop through rows of the alignments table
         for i, row in enumerate(self.alignments.iterrows()):
 
-            # for each row, join the path of the moving image to the path of the target image to create a dropdown menu item
+            # for each row, join the moving and target image filenames to create a descriptive string for the dropdown menu
             # then add the item to the widget
-            moving_image_dir = row[1]['moving image directory']
-            target_image_dir = row[1]['target image directory']
             moving_image_file = row[1]['moving image file']
             target_image_file = row[1]['target image file']
-            alignment_txt = str(i+1) + ': ' + os.path.join(moving_image_dir, moving_image_file) + ' to ' + os.path.join(target_image_dir, target_image_file)
+            alignment_txt = f'{i+1}: {moving_image_file} to {target_image_file}'
             self.widgetAlignmentSelection.addItem(alignment_txt)
 
         # connect the widget to the function implementing selection of an alignment/image pair
-        #self.widgetAlignmentSelection.activated[str].connect(self._select_alignment)
         self.widgetAlignmentSelection.activated[int].connect(self._select_alignment)
 
     def _set_up_image_display(self):
@@ -853,7 +852,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Wrapper for select_alignment to be called by keyboard shortcut to go to next or previous alignment.
         First checks if changing alignment is possible
-        If so, calls _select_alignment with the new alignment string to move forwards or backwards in the list
+        If so, calls _select_alignment with the new alignment ind to move forwards or backwards in the list
 
         Args:
             next_alignment (bool): If True, want to move to next alignment. If not, move to previous.
@@ -868,7 +867,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                     # move to the next alignment and remember to update the widget selection index too
                     self._select_alignment(self.current_alignment_ind + 1)
-                    self.widgetAlignmentSelection.setCurrentIndex(self.current_alignment_ind + 1)
+                    self.widgetAlignmentSelection.setCurrentIndex(self.current_alignment_ind)
 
             # if not, check we are not on first alignment before moving back to previous
             else:
@@ -876,7 +875,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                     # move to the previous alignment and remember to update the widget selection index too
                     self._select_alignment(self.current_alignment_ind - 1)
-                    self.widgetAlignmentSelection.setCurrentIndex(self.current_alignment_ind - 1)
+                    self.widgetAlignmentSelection.setCurrentIndex(self.current_alignment_ind)
 
 
     # display eyes for selected alignment
